@@ -64,12 +64,14 @@ else:
             st.markdown("<h4 style='color:#2D5A27;'>Form Identitas Pasien</h4>", unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             with c1:
-                t_mrs = st.date_input("Tanggal MRS", value=datetime.now())
+                # Perubahan Rentang Tanggal MRS
+                t_mrs = st.date_input("Tanggal MRS", value=datetime.now(), min_value=datetime(1900, 1, 1), max_value=datetime(2100, 12, 31))
                 rm = st.text_input("Nomor Rekam Medis (Wajib)")
                 rng = st.selectbox("Ruang Perawatan", ["Anna", "Maria", "Fransiskus", "Teresa", "Monika", "Clement", "ICU/ICCU"])
                 no_kamar = st.text_input("Nomor Kamar (Wajib)")
                 nama = st.text_input("Nama Lengkap Pasien (Wajib)")
-                t_lhr = st.date_input("Tanggal Lahir", value=datetime.now())
+                # Perubahan Rentang Tanggal Lahir (Lebih luas ke belakang & depan)
+                t_lhr = st.date_input("Tanggal Lahir", value=datetime.now(), min_value=datetime(1900, 1, 1), max_value=datetime(2100, 12, 31))
             with c2:
                 d_medis = st.text_input("Diagnosa Medis")
                 skrng_gizi = st.selectbox("Skrining Gizi (MST)", ["Tidak Berisiko", "Berisiko"])
@@ -144,6 +146,7 @@ else:
                     ws = writer.sheets['Laporan']
                     last_row = len(df_res) + 4
                     
+                    # TDD Sesuai Permintaan
                     ws.cell(row=last_row, column=2, value="Kepala Ruangan,")
                     ws.cell(row=last_row, column=6, value="Kepala Instalasi Gizi,")
                     ws.cell(row=last_row+4, column=2, value="( ____________________ )")
