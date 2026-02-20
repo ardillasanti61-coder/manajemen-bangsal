@@ -50,7 +50,7 @@ else:
 
     with st.sidebar:
         st.image("https://i.pinimg.com/1200x/fc/c1/cf/fcc1cf25a5c2be11134b8a9685371f15.jpg", width=120)
-        st.write(f"👩‍⚕️ Petugas: **{st.session_state['username'].upper()}**")
+        st.write(f"👩‍⚕️ Hello: **{st.session_state['username'].upper()}**")
         if st.button("Logout"):
             st.session_state['login_berhasil'] = False
             st.rerun()
@@ -135,3 +135,4 @@ else:
                 st.download_button("📥 DOWNLOAD LAPORAN FILTERED (EXCEL)", output.getvalue(), f"Laporan_Gizi_{bulan_pilihan}_{tahun_pilihan}.xlsx")
         else:
             st.info("Belum ada data.")
+
