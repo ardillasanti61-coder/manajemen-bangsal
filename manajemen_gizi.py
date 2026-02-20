@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
+from streamlit_gsheets import GSheetsConnection
 from io import BytesIO
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -8,63 +8,26 @@ from dateutil.relativedelta import relativedelta
 # --- 1. PENGATURAN HALAMAN ---
 st.set_page_config(page_title="Sistem Gizi Pasien", layout="wide")
 
-# CSS untuk tampilan yang lebih segar dan modern
+# GANTI INI dengan link Google Sheets kamu!
+URL_SHEETS = "https://docs.google.com/spreadsheets/d/1oPJUfBl5Ht74IUbt_Qv8XzG51bUmpCwJ_FL7iBO6UR0/edit?gid=0#gid=0"
+
+# CSS untuk tampilan
 st.markdown("""
     <style>
-    /* Background Gradasi Segar */
-    .stApp { 
-        background: linear-gradient(135deg, #f1f8e9 0%, #dcedc8 100%); 
-    }
-    
-    /* Desain Kotak Form */
+    .stApp { background: linear-gradient(135deg, #f1f8e9 0%, #dcedc8 100%); }
     [data-testid="stForm"] {
-        max-width: 500px;
-        margin: auto;
         background-color: white !important;
-        padding: 30px !important;
+        padding: 40px !important;
         border-radius: 25px !important;
         box-shadow: 0px 10px 30px rgba(0,0,0,0.1);
         border: 1px solid #a5d6a7;
     }
-    
-    /* Judul Utama */
-    .main-title { 
-        color: #2e7d32; 
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        font-weight: 800; 
-        text-align: center;
-        margin-top: 10px;
-    }
-    
-    /* Sub Judul */
-    .sub-title {
-        text-align: center;
-        color: #558b2f;
-        font-style: italic;
-        margin-bottom: 20px;
-    }
-
-    /* Gaya Tombol */
+    .main-title { color: #2e7d32; font-family: 'Segoe UI'; font-weight: 800; }
     div.stButton > button {
         background: linear-gradient(to right, #2e7d32, #66bb6a) !important;
         color: white !important;
         border-radius: 15px !important;
-        border: none !important;
-        font-weight: bold;
-        transition: 0.3s;
-        width: 100%;
-    }
-    
-    div.stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0px 5px 15px rgba(46, 125, 50, 0.3);
-    }
-
-    /* Styling Tabel */
-    .stDataFrame {
-        border-radius: 15px;
-        overflow: hidden;
-        box-shadow: 0px 4px 12px rgba(0,0,0,0.05);
+        font-weight: bold; width: 100%; height: 3em;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -75,56 +38,27 @@ if 'login_berhasil' not in st.session_state:
     st.session_state['username'] = ""
 
 if not st.session_state['login_berhasil']:
-    # Gambar Banner di Halaman Login (Dibuat Kecil & Tengah)
-    c1, c2, c3 = st.columns([1, 1, 1])
-    with c2:
-        st.image("https://images.unsplash.com/photo-1490818387583-1baba5e638af?w=300", width=150)
-    
-    st.markdown("<h2 class='main-title'>🥗 SISTEM GIZI PASIEN</h2>", unsafe_allow_html=True)
-    st.markdown("<p class='sub-title'>Manajemen Nutrisi Terpadu & Profesional</p>", unsafe_allow_html=True)
-    
-    with st.form("login_form"):
-        st.markdown("<h3 style='text-align:center; color:#2e7d32;'>Silakan Masuk</h3>", unsafe_allow_html=True)
-        user_input = st.text_input("Username")
-        pw_input = st.text_input("Password", type="password")
-        if st.form_submit_button("MASUK KE SISTEM"):
-            users = {"ardilla": "dilla123", "ahligizi1": "gizi123", "ahligizi2": "gizi456"}
-            if user_input in users and pw_input == users[user_input]:
-                st.session_state['login_berhasil'] = True
-                st.session_state['username'] = user_input
-                st.rerun()
-            else:
-                st.error("Username atau Password Salah!")
+    st.write("##")
+    col_img, col_space, col_login = st.columns([1.5, 0.2, 1])
+    with col_img:
+        st.image("https://images.unsplash.com/photo-1490818387583-1baba5e638af?w=800", use_container_width=True)
+        st.markdown("<h1 class='main-title'>🥗 SISTEM GIZI PASIEN</h1>", unsafe_allow_html=True)
+    with col_login:
+        with st.form("login_form"):
+            st.markdown("<h2 style='text-align:center; color:#2e7d32;'>Silakan Login</h2>", unsafe_allow_html=True)
+            user_input = st.text_input("Username")
+            pw_input = st.text_input("Password", type="password")
+            if st.form_submit_button("MASUK KE SISTEM"):
+                users = {"ardilla": "dilla123", "ahligizi1": "gizi123", "ahligizi2": "gizi456"}
+                if user_input in users and pw_input == users[user_input]:
+                    st.session_state['login_berhasil'] = True
+                    st.session_state['username'] = user_input
+                    st.rerun()
+                else:
+                    st.error("Username atau Password Salah!")
 else:
-    # --- 3. DATABASE ---
-    DB_NAME = 'gizi_rs_v3.db'
-
-    def init_db():
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS pasien (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            tgl_mrs TEXT, no_rm TEXT, ruang TEXT, nama_pasien TEXT, 
-            tgl_lahir TEXT, umur TEXT, bb REAL, tb REAL, imt REAL, 
-            status_gizi TEXT, zscore TEXT, diagnosa_medis TEXT, skrining_gizi TEXT, diet TEXT, input_by TEXT)''')
-        conn.commit()
-        conn.close()
-
-    def ambil_data_db():
-        conn = sqlite3.connect(DB_NAME)
-        query = "SELECT * FROM pasien ORDER BY tgl_mrs DESC"
-        df = pd.read_sql_query(query, conn)
-        conn.close()
-        return df
-
-    def hapus_data(id_pasien):
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute("DELETE FROM pasien WHERE id = ?", (id_pasien,))
-        conn.commit()
-        conn.close()
-
-    init_db()
+    # --- 3. KONEKSI GOOGLE SHEETS ---
+    conn = st.connection("gsheets", type=GSheetsConnection)
 
     # Sidebar
     with st.sidebar:
@@ -134,10 +68,7 @@ else:
             st.session_state['login_berhasil'] = False
             st.rerun()
 
-    # Header Dashboard
-    st.image("https://images.unsplash.com/photo-1512621776951-a57141f2eefd?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80", use_container_width=True)
     st.markdown(f"<h1 class='main-title'>DASHBOARD GIZI - {st.session_state['username'].upper()}</h1>", unsafe_allow_html=True)
-    
     tab1, tab2 = st.tabs(["➕ Input Data Pasien", "📊 Rekap & Ekspor Laporan"])
 
     with tab1:
@@ -158,8 +89,9 @@ else:
                 z_manual = st.text_input("Z-Score", placeholder="Contoh: -1.5 SD")
                 diet = st.text_input("Jenis Diet Gizi")
             
-            if st.form_submit_button("SIMPAN DATA KE DATABASE"):
+            if st.form_submit_button("SIMPAN DATA KE CLOUD"):
                 if rm and nama:
+                    # Logika perhitungan
                     u_teks = f"{relativedelta(t_mrs, t_lhr).years} Thn"
                     imt_val = round(bb / ((tb/100)**2), 2) if bb > 0 and tb > 0 else 0
                     if imt_val >= 27: st_gizi = "Obesitas"
@@ -167,88 +99,57 @@ else:
                     elif imt_val >= 18.5: st_gizi = "Normal"
                     else: st_gizi = "Kurus"
 
-                    conn = sqlite3.connect(DB_NAME)
-                    c = conn.cursor()
-                    c.execute('''INSERT INTO pasien 
-                        (tgl_mrs, no_rm, ruang, nama_pasien, tgl_lahir, umur, bb, tb, imt, status_gizi, zscore, diagnosa_medis, skrining_gizi, diet, input_by) 
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                        (t_mrs.strftime("%Y-%m-%d"), rm, rng, nama, t_lhr.strftime("%Y-%m-%d"), 
-                         u_teks, bb, tb, imt_val, st_gizi, z_manual, d_medis, skrng_gizi, diet, st.session_state['username']))
-                    conn.commit()
-                    conn.close()
-                    st.success(f"✅ Data {nama} berhasil diamankan!")
-                    st.rerun()
+                    # Ambil data lama dari Sheets
+                    existing_data = conn.read(spreadsheet=URL_SHEETS)
+                    
+                    # Buat baris baru
+                    new_row = pd.DataFrame([{
+                        "tgl_mrs": t_mrs.strftime("%Y-%m-%d"),
+                        "no_rm": rm, "ruang": rng, "nama_pasien": nama,
+                        "tgl_lahir": t_lhr.strftime("%Y-%m-%d"), "umur": u_teks,
+                        "bb": bb, "tb": tb, "imt": imt_val, "status_gizi": st_gizi,
+                        "zscore": z_manual, "diagnosa_medis": d_medis,
+                        "skrining_gizi": skrng_gizi, "diet": diet,
+                        "input_by": st.session_state['username']
+                    }])
+
+                    # Update ke Sheets
+                    updated_df = pd.concat([existing_data, new_row], ignore_index=True)
+                    conn.update(spreadsheet=URL_SHEETS, data=updated_df)
+                    
+                    st.success(f"✅ Data {nama} berhasil diamankan di Google Sheets!")
                 else:
                     st.warning("⚠️ Nama dan No. RM wajib diisi!")
 
     with tab2:
-        df_full = ambil_data_db()
-        if st.session_state['username'] != "ardilla":
-            df_full = df_full[df_full['input_by'] == st.session_state['username']]
-
+        df_full = conn.read(spreadsheet=URL_SHEETS)
         if not df_full.empty:
-            st.markdown("<h4 style='color:#2e7d32;'>Saring & Cari Data</h4>", unsafe_allow_html=True)
-            f1, f2, f3 = st.columns(3)
+            if st.session_state['username'] != "ardilla":
+                df_full = df_full[df_full['input_by'] == st.session_state['username']]
+
+            # Filter
+            f1, f2 = st.columns(2)
             with f1:
-                cari_nama = st.text_input("🔎 Cari Nama Pasien")
+                cari = st.text_input("🔎 Cari Nama")
             with f2:
-                filter_ruang = st.multiselect("🏥 Filter Ruangan", options=sorted(df_full['ruang'].unique()))
-            with f3:
-                df_full['bulan_mrs'] = pd.to_datetime(df_full['tgl_mrs']).dt.strftime('%B %Y')
-                filter_bulan = st.multiselect("📅 Filter Bulan MRS", options=sorted(df_full['bulan_mrs'].unique()))
+                ruang_f = st.multiselect("🏥 Filter Ruang", options=sorted(df_full['ruang'].unique()))
 
-            # Proses Filter
             df_filter = df_full.copy()
-            if cari_nama:
-                df_filter = df_filter[df_filter['nama_pasien'].str.contains(cari_nama, case=False)]
-            if filter_ruang:
-                df_filter = df_filter[df_filter['ruang'].isin(filter_ruang)]
-            if filter_bulan:
-                df_filter = df_filter[df_filter['bulan_mrs'].isin(filter_bulan)]
+            if cari: df_filter = df_filter[df_filter['nama_pasien'].str.contains(cari, case=False)]
+            if ruang_f: df_filter = df_filter[df_filter['ruang'].isin(ruang_f)]
 
-            st.write(f"Menampilkan **{len(df_filter)}** catatan medis")
-            kolom_tampil = ['tgl_mrs', 'no_rm', 'nama_pasien', 'ruang', 'status_gizi', 'zscore', 'skrining_gizi', 'input_by']
-            st.dataframe(df_filter, use_container_width=True, hide_index=True, column_order=kolom_tampil)
-            
-            # --- EKSPOR KE EXCEL ---
+            st.dataframe(df_filter, use_container_width=True, hide_index=True)
+
+            # Ekspor Excel
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_export = df_filter.drop(columns=['bulan_mrs'])
-                df_export.to_excel(writer, index=False, sheet_name='Laporan Gizi')
-                
-                worksheet = writer.sheets['Laporan Gizi']
-                worksheet.page_setup.paperSize = '13' # F4
-                worksheet.page_setup.orientation = worksheet.ORIENTATION_LANDSCAPE
-                
-                # Tambah baris tanda tangan
-                last_row = len(df_export) + 3
-                worksheet.cell(row=last_row, column=2, value="Kepala Instalasi Gizi")
-                worksheet.cell(row=last_row, column=6, value="Kepala Ruangan")
-                nama_row = last_row + 4
-                worksheet.cell(row=nama_row, column=2, value="( ____________________ )")
-                worksheet.cell(row=nama_row, column=6, value="( ____________________ )")
-
+                df_filter.to_excel(writer, index=False, sheet_name='Laporan')
+            
             st.download_button(
-                label=f"📤 EKSPOR {len(df_filter)} DATA KE EXCEL (F4)",
+                label="📤 EKSPOR KE EXCEL",
                 data=output.getvalue(),
-                file_name=f"Laporan_Gizi_{datetime.now().strftime('%d%m%Y')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                file_name="Laporan_Gizi.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-
-            # --- HAPUS DATA ---
-            st.markdown("---")
-            with st.expander("🗑️ Hapus Data Salah Input"):
-                opsi_hapus = {f"{row['nama_pasien']} ({row['no_rm']}) - ID:{row['id']}": row['id'] for _, row in df_filter.iterrows()}
-                pilihan = st.selectbox("Pilih data yang akan dibuang:", ["-- Pilih --"] + list(opsi_hapus.keys()))
-                if pilihan != "-- Pilih --":
-                    konfirmasi = st.checkbox("Saya yakin ingin menghapus data ini secara permanen")
-                    if st.button("HAPUS SEKARANG"):
-                        if konfirmasi:
-                            hapus_data(opsi_hapus[pilihan])
-                            st.success("Data berhasil dihapus!")
-                            st.rerun()
-                        else:
-                            st.error("Centang konfirmasi dulu!")
         else:
-            st.info("Belum ada data yang tersimpan.")
+            st.info("Belum ada data di Google Sheets.")
