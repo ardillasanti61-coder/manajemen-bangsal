@@ -33,7 +33,7 @@ st.markdown("""
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         font-weight: 800; 
         text-align: center;
-        margin-top: -20px;
+        margin-top: 10px;
     }
     
     /* Sub Judul */
@@ -41,7 +41,7 @@ st.markdown("""
         text-align: center;
         color: #558b2f;
         font-style: italic;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
     }
 
     /* Gaya Tombol */
@@ -75,9 +75,12 @@ if 'login_berhasil' not in st.session_state:
     st.session_state['username'] = ""
 
 if not st.session_state['login_berhasil']:
-    # Gambar Banner di Halaman Login
-    st.image("https://images.unsplash.com/photo-1490818387583-1baba5e638af?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80", use_container_width=True)
-    st.markdown("<h1 class='main-title'>🥗 SISTEM GIZI PASIEN</h1>", unsafe_allow_html=True)
+    # Gambar Banner di Halaman Login (Dibuat Kecil & Tengah)
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c2:
+        st.image("https://images.unsplash.com/photo-1490818387583-1baba5e638af?w=300", width=150)
+    
+    st.markdown("<h2 class='main-title'>🥗 SISTEM GIZI PASIEN</h2>", unsafe_allow_html=True)
     st.markdown("<p class='sub-title'>Manajemen Nutrisi Terpadu & Profesional</p>", unsafe_allow_html=True)
     
     with st.form("login_form"):
