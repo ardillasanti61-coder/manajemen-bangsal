@@ -11,21 +11,25 @@ st.set_page_config(page_title="Sistem Gizi Pasien", layout="wide")
 # Link Google Sheets Anda
 URL_SHEETS = "https://docs.google.com/spreadsheets/d/1oPJUfBl5Ht74IUbt_Qv8XzG51bUmpCwJ_FL7iBO6UR0/edit?gid=0#gid=0"
 
-# --- 2. CSS CUSTOM (KURSOR JERUK & TEMA MINT) ---
+# --- 2. CSS CUSTOM (KURSOR JERUK SUPER UNIVERSAL & TEMA MINT) ---
 st.markdown("""
     <style>
-    /* Paksa kursor muncul di seluruh elemen aplikasi */
-    html, body, .stApp, [data-testid="stAppViewContainer"] { 
-        background-color: #BFF6C3 !important; 
+    /* Selector Universal untuk memaksa kursor muncul di semua elemen */
+    * {
         cursor: url("https://img.icons8.com/emoji/32/tangerine-emoji.png"), auto !important;
     }
 
-    /* Kursor untuk elemen interaktif (tombol, input, tab) */
-    button, input, select, textarea, a, [data-baseweb="tab"], [data-testid="stHeader"], .stMarkdown, p, span, label {
+    /* Khusus untuk elemen yang bisa diklik (Pointer) */
+    button, input, select, textarea, a, [data-baseweb="tab"], label, .st-emotion-cache-1wbqy5l {
         cursor: url("https://img.icons8.com/emoji/32/tangerine-emoji.png"), pointer !important;
     }
+
+    /* Warna Latar Belakang Aplikasi */
+    .stApp {
+        background-color: #BFF6C3 !important;
+    }
     
-    /* Desain Kotak Form */
+    /* Desain Kotak Form Putih */
     [data-testid="stForm"] {
         background-color: white !important;
         padding: 25px !important;
@@ -40,16 +44,12 @@ st.markdown("""
         color: #2D5A27; font-family: 'Segoe UI', sans-serif; font-weight: 800; text-align: center;
     }
     
-    /* Tombol Gradasi */
+    /* Desain Tombol */
     div.stButton > button {
         background: linear-gradient(to right, #43766C, #729762) !important;
         color: white !important;
         border-radius: 12px !important;
         font-weight: bold; width: 100%; height: 3em; border: none !important;
-        transition: 0.3s;
-    }
-    div.stButton > button:hover {
-        opacity: 0.8; transform: scale(0.98);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -74,7 +74,7 @@ if not st.session_state['login_berhasil']:
             else:
                 st.error("Username atau Password Salah!")
 
-# --- 4. HALAMAN UTAMA ---
+# --- 4. HALAMAN UTAMA (DASHBOARD) ---
 else:
     conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -88,6 +88,7 @@ else:
     st.markdown(f"<h1 class='main-title'>DASHBOARD GIZI - {st.session_state['username'].upper()}</h1>", unsafe_allow_html=True)
     tab1, tab2 = st.tabs(["➕ Input Data Pasien", "📊 Rekap & Kelola Laporan"])
 
+    # --- TAB 1: INPUT DATA ---
     with tab1:
         with st.form("form_input", clear_on_submit=True):
             st.markdown("<h4 style='color:#2D5A27;'>Form Identitas Pasien</h4>", unsafe_allow_html=True)
@@ -97,7 +98,7 @@ else:
                 rm = st.text_input("Nomor Rekam Medis (Wajib)")
                 nama = st.text_input("Nama Lengkap Pasien (Wajib)")
                 
-                # RENTANG TAHUN PANJANG (1900 - 2100)
+                # TANGGAL LAHIR (1900-2100)
                 t_lhr = st.date_input(
                     "Tanggal Lahir", 
                     value=datetime.now(), 
@@ -117,7 +118,7 @@ else:
                 if rm and nama:
                     delta = relativedelta(t_mrs, t_lhr)
                     
-                    # Logika Umur Dinamis (Harus tepat untuk pediatrik)
+                    # Logika Umur Dinamis
                     if delta.years < 19:
                         if delta.years == 0 and delta.months == 0:
                             u_teks = f"{delta.days} Hari"
@@ -134,7 +135,7 @@ else:
                     elif 0 < imt_val < 18.5: st_gizi = "Kurus"
                     else: st_gizi = "Data Tidak Lengkap"
 
-                    # Simpan
+                    # Simpan ke Sheets
                     existing_data = conn.read(spreadsheet=URL_SHEETS)
                     new_row = pd.DataFrame([{
                         "tgl_mrs": t_mrs.strftime("%Y-%m-%d"), "no_rm": rm, "ruang": rng, "nama_pasien": nama,
@@ -144,10 +145,11 @@ else:
                     }])
                     updated_df = pd.concat([existing_data, new_row], ignore_index=True)
                     conn.update(spreadsheet=URL_SHEETS, data=updated_df)
-                    st.success(f"✅ Data {nama} Berhasil Disimpan!")
+                    st.success(f"✅ Data {nama} ({u_teks}) Berhasil Disimpan!")
                 else:
                     st.warning("⚠️ Nama dan No. RM wajib diisi!")
 
+    # --- TAB 2: REKAP & MANAJEMEN DATA ---
     with tab2:
         df_full = conn.read(spreadsheet=URL_SHEETS).fillna('')
         if not df_full.empty:
@@ -178,7 +180,7 @@ else:
 
             st.write("---")
             
-            # Warna Status Gizi
+            # Warna Berdasarkan Status Gizi
             def color_status(val):
                 if val == 'Obesitas': return 'background-color: #FF7676; color: white; font-weight: bold;'
                 elif val == 'Overweight': return 'background-color: #FFD966; color: black;'
@@ -195,4 +197,4 @@ else:
             st.download_button(label="📥 DOWNLOAD EXCEL", data=output.getvalue(), 
                                file_name=f"Laporan_Gizi_{datetime.now().strftime('%d%m%Y')}.xlsx")
         else:
-            st.info("💡 Belum ada data tersimpan.")
+            st.info("💡 Belum ada data tersimpan di Google Sheets.")
