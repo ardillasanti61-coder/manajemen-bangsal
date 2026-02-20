@@ -71,9 +71,14 @@ if not st.session_state['login_berhasil']:
     # Tampilan Login Center
     st.markdown("<br>", unsafe_allow_html=True)
     
-    with st.form("login_form"):
-        # MENGGUNAKAN GAMBAR MAKANAN DARI UNSPLASH (Lebih Stabil daripada Pinterest)
-        st.image("https://images.unsplash.com/photo-1490818387583-1baba5e638af?q=80&w=1000&auto=format&fit=crop", use_container_width=True)
+   with st.form("login_form"):
+    # Gunakan 3 kolom untuk membuat gambar ke tengah
+    col_img1, col_img2, col_img3 = st.columns([1, 2, 1])
+    with col_img2:
+        st.image("https://images.unsplash.com/photo-1490818387583-1baba5e638af?q=80&w=1000&auto=format&fit=crop", width=150)
+    
+    st.markdown("<h2 class='main-title'>Login</h2>", unsafe_allow_html=True)
+    # ... sisa kode login ...
         
         st.markdown("<h2 class='main-title'>Login</h2>", unsafe_allow_html=True)
         user_input = st.text_input("Username")
@@ -178,3 +183,4 @@ else:
             )
         else:
             st.info("Belum ada data.")
+
