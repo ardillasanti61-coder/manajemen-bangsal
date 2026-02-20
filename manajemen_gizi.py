@@ -72,8 +72,8 @@ if not st.session_state['login_berhasil']:
     st.markdown("<br>", unsafe_allow_html=True)
     
     with st.form("login_form"):
-        # MASUKKAN GAMBAR MAKANAN SEGAR
-        st.image("https://i.pinimg.com/736x/8e/9d/92/8e9d927a4128f7d983058a74e54807b0.jpg", use_container_width=True)
+        # MENGGUNAKAN GAMBAR MAKANAN DARI UNSPLASH (Lebih Stabil daripada Pinterest)
+        st.image("https://images.unsplash.com/photo-1490818387583-1baba5e638af?q=80&w=1000&auto=format&fit=crop", use_container_width=True)
         
         st.markdown("<h2 class='main-title'>Login</h2>", unsafe_allow_html=True)
         user_input = st.text_input("Username")
