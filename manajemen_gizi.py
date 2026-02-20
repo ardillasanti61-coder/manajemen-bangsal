@@ -8,23 +8,48 @@ from dateutil.relativedelta import relativedelta
 # --- 1. PENGATURAN HALAMAN ---
 st.set_page_config(page_title="Sistem Gizi Pasien", layout="wide")
 
+# Link Google Sheets Anda
 URL_SHEETS = "https://docs.google.com/spreadsheets/d/1oPJUfBl5Ht74IUbt_Qv8XzG51bUmpCwJ_FL7iBO6UR0/edit?gid=0#gid=0"
 
-# --- 2. CSS CUSTOM ---
+# --- 2. CSS CUSTOM (KURSOR JERUK & TEMA MINT) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #BFF6C3 !important; cursor: url("https://img.icons8.com/emoji/32/tangerine-emoji.png"), auto !important; }
-    button, input, select, textarea, a, [data-baseweb="tab"], [data-testid="stHeader"] {
+    /* Paksa kursor muncul di seluruh elemen aplikasi */
+    html, body, .stApp, [data-testid="stAppViewContainer"] { 
+        background-color: #BFF6C3 !important; 
+        cursor: url("https://img.icons8.com/emoji/32/tangerine-emoji.png"), auto !important;
+    }
+
+    /* Kursor untuk elemen interaktif (tombol, input, tab) */
+    button, input, select, textarea, a, [data-baseweb="tab"], [data-testid="stHeader"], .stMarkdown, p, span, label {
         cursor: url("https://img.icons8.com/emoji/32/tangerine-emoji.png"), pointer !important;
     }
+    
+    /* Desain Kotak Form */
     [data-testid="stForm"] {
-        background-color: white !important; padding: 25px !important; border-radius: 30px !important;
-        box-shadow: 0px 15px 35px rgba(0,0,0,0.1); border: 2px solid #9BDBA1; max-width: 450px; margin: 2% auto !important;
+        background-color: white !important;
+        padding: 25px !important;
+        border-radius: 30px !important;
+        box-shadow: 0px 15px 35px rgba(0,0,0,0.1);
+        border: 2px solid #9BDBA1;
+        max-width: 450px;
+        margin: 2% auto !important;
     }
-    .main-title { color: #2D5A27; font-family: 'Segoe UI', sans-serif; font-weight: 800; text-align: center; }
+    
+    .main-title { 
+        color: #2D5A27; font-family: 'Segoe UI', sans-serif; font-weight: 800; text-align: center;
+    }
+    
+    /* Tombol Gradasi */
     div.stButton > button {
-        background: linear-gradient(to right, #43766C, #729762) !important; color: white !important;
-        border-radius: 12px !important; font-weight: bold; width: 100%; height: 3em; border: none !important;
+        background: linear-gradient(to right, #43766C, #729762) !important;
+        color: white !important;
+        border-radius: 12px !important;
+        font-weight: bold; width: 100%; height: 3em; border: none !important;
+        transition: 0.3s;
+    }
+    div.stButton > button:hover {
+        opacity: 0.8; transform: scale(0.98);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -37,7 +62,7 @@ if 'login_berhasil' not in st.session_state:
 if not st.session_state['login_berhasil']:
     st.markdown("<br><br>", unsafe_allow_html=True)
     with st.form("login_form"):
-        st.markdown("<h2 class='main-title'>LOGIN</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 class='main-title'>LOGIN SISTEM GIZI</h2>", unsafe_allow_html=True)
         user_input = st.text_input("Username")
         pw_input = st.text_input("Password", type="password")
         if st.form_submit_button("MASUK"):
@@ -48,18 +73,19 @@ if not st.session_state['login_berhasil']:
                 st.rerun()
             else:
                 st.error("Username atau Password Salah!")
+
+# --- 4. HALAMAN UTAMA ---
 else:
-    # --- 4. HALAMAN UTAMA ---
     conn = st.connection("gsheets", type=GSheetsConnection)
 
     with st.sidebar:
         st.image("https://i.pinimg.com/1200x/fc/c1/cf/fcc1cf25a5c2be11134b8a9685371f15.jpg", width=120)
         st.write(f"👩‍⚕️ Petugas: **{st.session_state['username'].upper()}**")
-        if st.button("Logout"):
+        if st.button("Logout", icon=":material/logout:"):
             st.session_state['login_berhasil'] = False
             st.rerun()
 
-    st.markdown(f"<h1 class='main-title'>DASHBOARD Manajemen Bangsal- {st.session_state['username'].upper()}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 class='main-title'>DASHBOARD GIZI - {st.session_state['username'].upper()}</h1>", unsafe_allow_html=True)
     tab1, tab2 = st.tabs(["➕ Input Data Pasien", "📊 Rekap & Kelola Laporan"])
 
     with tab1:
@@ -67,12 +93,11 @@ else:
             st.markdown("<h4 style='color:#2D5A27;'>Form Identitas Pasien</h4>", unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             with c1:
-                # Tanggal MRS dibuat rentang panjang sampai 2100
                 t_mrs = st.date_input("Tanggal MRS", value=datetime.now(), min_value=datetime(1900,1,1), max_value=datetime(2100,12,31))
                 rm = st.text_input("Nomor Rekam Medis (Wajib)")
                 nama = st.text_input("Nama Lengkap Pasien (Wajib)")
                 
-                # TANGGAL LAHIR RENTANG PANJANG (1900 - 2100)
+                # RENTANG TAHUN PANJANG (1900 - 2100)
                 t_lhr = st.date_input(
                     "Tanggal Lahir", 
                     value=datetime.now(), 
@@ -92,7 +117,7 @@ else:
                 if rm and nama:
                     delta = relativedelta(t_mrs, t_lhr)
                     
-                    # Logika Umur (Detail Hari untuk bayi baru lahir)
+                    # Logika Umur Dinamis (Harus tepat untuk pediatrik)
                     if delta.years < 19:
                         if delta.years == 0 and delta.months == 0:
                             u_teks = f"{delta.days} Hari"
@@ -109,6 +134,7 @@ else:
                     elif 0 < imt_val < 18.5: st_gizi = "Kurus"
                     else: st_gizi = "Data Tidak Lengkap"
 
+                    # Simpan
                     existing_data = conn.read(spreadsheet=URL_SHEETS)
                     new_row = pd.DataFrame([{
                         "tgl_mrs": t_mrs.strftime("%Y-%m-%d"), "no_rm": rm, "ruang": rng, "nama_pasien": nama,
@@ -118,9 +144,9 @@ else:
                     }])
                     updated_df = pd.concat([existing_data, new_row], ignore_index=True)
                     conn.update(spreadsheet=URL_SHEETS, data=updated_df)
-                    st.success(f"✅ Tersimpan! {nama} ({u_teks})")
+                    st.success(f"✅ Data {nama} Berhasil Disimpan!")
                 else:
-                    st.warning("⚠️ Isi Nama dan No. RM!")
+                    st.warning("⚠️ Nama dan No. RM wajib diisi!")
 
     with tab2:
         df_full = conn.read(spreadsheet=URL_SHEETS).fillna('')
@@ -147,11 +173,12 @@ else:
                         rm_to_delete = pilihan_hapus.split(" - ")[0]
                         updated_df = df_full[df_full['no_rm'] != rm_to_delete]
                         conn.update(spreadsheet=URL_SHEETS, data=updated_df)
-                        st.success("Terhapus!")
+                        st.success("Data terhapus!")
                         st.rerun()
 
             st.write("---")
             
+            # Warna Status Gizi
             def color_status(val):
                 if val == 'Obesitas': return 'background-color: #FF7676; color: white; font-weight: bold;'
                 elif val == 'Overweight': return 'background-color: #FFD966; color: black;'
@@ -161,11 +188,11 @@ else:
 
             st.dataframe(df_filter.style.map(color_status, subset=['status_gizi']), use_container_width=True, hide_index=True)
 
+            # Download Excel
             output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df_filter.to_excel(writer, index=False, sheet_name='Laporan_Gizi')
             st.download_button(label="📥 DOWNLOAD EXCEL", data=output.getvalue(), 
                                file_name=f"Laporan_Gizi_{datetime.now().strftime('%d%m%Y')}.xlsx")
         else:
-            st.info("💡 Belum ada data.")
-
+            st.info("💡 Belum ada data tersimpan.")
