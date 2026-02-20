@@ -37,7 +37,7 @@ if 'login_berhasil' not in st.session_state:
 if not st.session_state['login_berhasil']:
     st.markdown("<br><br>", unsafe_allow_html=True)
     with st.form("login_form"):
-        st.markdown("<h2 class='main-title'>LOGIN SISTEM GIZI</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 class='main-title'>LOGIN</h2>", unsafe_allow_html=True)
         user_input = st.text_input("Username")
         pw_input = st.text_input("Password", type="password")
         if st.form_submit_button("MASUK"):
@@ -59,7 +59,7 @@ else:
             st.session_state['login_berhasil'] = False
             st.rerun()
 
-    st.markdown(f"<h1 class='main-title'>DASHBOARD GIZI - {st.session_state['username'].upper()}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h1 class='main-title'>DASHBOARD Manajemen Bangsal- {st.session_state['username'].upper()}</h1>", unsafe_allow_html=True)
     tab1, tab2 = st.tabs(["➕ Input Data Pasien", "📊 Rekap & Kelola Laporan"])
 
     with tab1:
@@ -168,3 +168,4 @@ else:
                                file_name=f"Laporan_Gizi_{datetime.now().strftime('%d%m%Y')}.xlsx")
         else:
             st.info("💡 Belum ada data.")
+
