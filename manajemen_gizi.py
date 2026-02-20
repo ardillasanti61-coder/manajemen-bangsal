@@ -11,22 +11,28 @@ st.set_page_config(page_title="Sistem Gizi Pasien", layout="wide")
 # GANTI INI dengan link Google Sheets kamu!
 URL_SHEETS = "https://docs.google.com/spreadsheets/d/1oPJUfBl5Ht74IUbt_Qv8XzG51bUmpCwJ_FL7iBO6UR0/edit?gid=0#gid=0"
 
-# CSS untuk tampilan MINT FRESH & CENTER LOGIN
+# CSS untuk tampilan MINT FRESH, CENTER LOGIN & KURSOR JERUK
 st.markdown("""
     <style>
-    /* Background Mint Fresh */
+    /* KURSOR ICON JERUK */
     .stApp { 
         background-color: #BFF6C3 !important; 
+        cursor: url("https://img.icons8.com/emoji/32/tangerine-emoji.png"), auto !important;
+    }
+
+    /* Kursor Jeruk tetap muncul saat di atas tombol dan input */
+    button, input, select, textarea, a, [data-baseweb="tab"] {
+        cursor: url("https://img.icons8.com/emoji/32/tangerine-emoji.png"), pointer !important;
     }
     
-    /* Login Box di Tengah */
+    /* Login Box di Tengah - Ukuran Lebih Kecil */
     [data-testid="stForm"] {
         background-color: white !important;
-        padding: 40px !important;
+        padding: 25px !important;
         border-radius: 30px !important;
         box-shadow: 0px 15px 35px rgba(0,0,0,0.1);
         border: 2px solid #9BDBA1;
-        max-width: 450px;
+        max-width: 350px;
         margin: 5% auto !important; /* Membuat form ke tengah */
     }
     
@@ -37,15 +43,21 @@ st.markdown("""
         text-align: center;
     }
     
-    /* Tombol Hijau Gizi */
+    /* Tombol Hijau Gizi - Lebih Proporsional */
     div.stButton > button {
         background: linear-gradient(to right, #43766C, #729762) !important;
         color: white !important;
-        border-radius: 20px !important;
+        border-radius: 12px !important;
         font-weight: bold; 
         width: 100%; 
-        height: 3.5em;
+        height: 3em;
         border: none !important;
+        transition: 0.3s;
+    }
+    
+    div.stButton > button:hover {
+        opacity: 0.8;
+        transform: scale(0.98);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -57,13 +69,16 @@ if 'login_berhasil' not in st.session_state:
 
 if not st.session_state['login_berhasil']:
     # Tampilan Login Center
-    st.markdown("<br><h1 style='text-align:center; font-size: 60px;'>🥗</h1>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     with st.form("login_form"):
-        st.markdown("<h1 class='main-title'>SISTEM GIZI</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#43766C;'>Silakan Login Petugas</p>", unsafe_allow_html=True)
-        st.write("---")
+        # MASUKKAN GAMBAR MAKANAN SEGAR
+        st.image("https://i.pinimg.com/736x/8e/9d/92/8e9d927a4128f7d983058a74e54807b0.jpg", use_container_width=True)
+        
+        st.markdown("<h2 class='main-title'>Login</h2>", unsafe_allow_html=True)
         user_input = st.text_input("Username")
         pw_input = st.text_input("Password", type="password")
+        
         if st.form_submit_button("MASUK"):
             users = {"ardilla": "dilla123", "ahligizi1": "gizi123", "ahligizi2": "gizi456"}
             if user_input in users and pw_input == users[user_input]:
@@ -78,8 +93,10 @@ else:
 
     # Sidebar
     with st.sidebar:
-        st.image("https://i.pinimg.com/1200x/fc/c1/cf/fcc1cf25a5c2be11134b8a9685371f15.jpg", width=80)
-        st.write(f"👤 Hello: **{st.session_state['username'].upper()}**")
+        st.image("https://i.pinimg.com/1200x/fc/c1/cf/fcc1cf25a5c2be11134b8a9685371f15.jpg", width=120)
+        st.write(f"👩‍⚕️ Hello: **{st.session_state['username'].upper()}**")
+        st.write("---")
+        
         if st.button("Logout", icon=":material/logout:"):
             st.session_state['login_berhasil'] = False
             st.rerun()
