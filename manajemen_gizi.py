@@ -47,6 +47,7 @@ if not st.session_state['login_berhasil']:
             else:
                 st.error("Username atau Password Salah!")
 else:
+    # Koneksi ke GSheets
     conn = st.connection("gsheets", type=GSheetsConnection)
 
     with st.sidebar:
@@ -64,14 +65,12 @@ else:
             st.markdown("<h4 style='color:#2D5A27;'>Form Identitas Pasien</h4>", unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             with c1:
-                # Perubahan Rentang Tanggal MRS
-                t_mrs = st.date_input("Tanggal MRS", value=datetime.now(), min_value=datetime(1900, 1, 1), max_value=datetime(2100, 12, 31))
+                t_mrs = st.date_input("Tanggal MRS", value=datetime.now())
                 rm = st.text_input("Nomor Rekam Medis (Wajib)")
                 rng = st.selectbox("Ruang Perawatan", ["Anna", "Maria", "Fransiskus", "Teresa", "Monika", "Clement", "ICU/ICCU"])
                 no_kamar = st.text_input("Nomor Kamar (Wajib)")
                 nama = st.text_input("Nama Lengkap Pasien (Wajib)")
-                # Perubahan Rentang Tanggal Lahir (Lebih luas ke belakang & depan)
-                t_lhr = st.date_input("Tanggal Lahir", value=datetime.now(), min_value=datetime(1900, 1, 1), max_value=datetime(2100, 12, 31))
+                t_lhr = st.date_input("Tanggal Lahir", value=datetime.now())
             with c2:
                 d_medis = st.text_input("Diagnosa Medis")
                 skrng_gizi = st.selectbox("Skrining Gizi (MST)", ["Tidak Berisiko", "Berisiko"])
@@ -93,33 +92,49 @@ else:
                     else: st_gizi = "Data Tidak Lengkap"
 
                     try:
-                        existing_data = conn.read(spreadsheet=URL_SHEETS)
+                        # LOGIKA ANTI-TUMPUK (Membaca data lama dulu)
+                        # ttl=0 agar selalu mengambil data paling baru dari cloud
+                        existing_data = conn.read(spreadsheet=URL_SHEETS, ttl=0).dropna(how='all')
+                        
                         new_row = pd.DataFrame([{
                             "tgl_mrs": t_mrs.strftime("%Y-%m-%d"), "no_rm": rm, "ruang": rng, "no_kamar": no_kamar, "nama_pasien": nama,
                             "tgl_lahir": t_lhr.strftime("%Y-%m-%d"), "umur": u_teks, "bb": bb, "tb": tb, "imt": imt_val,
                             "status_gizi": st_gizi, "zscore": z_manual, "diagnosa_medis": d_medis,
                             "skrining_gizi": skrng_gizi, "diet": diet, "input_by": st.session_state['username']
                         }])
+                        
+                        # Menggabungkan data lama dengan baris baru di bawahnya
                         updated_df = pd.concat([existing_data, new_row], ignore_index=True)
+                        
+                        # Update balik ke Cloud
                         conn.update(spreadsheet=URL_SHEETS, data=updated_df)
-                        st.success(f"✅ Tersimpan! {nama}")
+                        
+                        st.success(f"✅ Berhasil Tersimpan ke Baris Baru! Pasien: {nama}")
                         st.balloons()
+                        # Membersihkan cache agar tab rekap langsung update
+                        st.cache_data.clear()
                     except Exception as e:
-                        st.error(f"Gagal Simpan. Cek Izin EDITOR di Sheets. Error: {e}")
+                        st.error(f"Gagal Simpan. Pastikan Header di Sheets sudah benar. Error: {e}")
+                else:
+                    st.warning("Nomor RM dan Nama Lengkap wajib diisi!")
 
     with tab2:
-        df_full = conn.read(spreadsheet=URL_SHEETS).fillna('')
+        # Menampilkan data terbaru
+        df_full = conn.read(spreadsheet=URL_SHEETS, ttl=0).fillna('')
+        
         if not df_full.empty:
-            df_full['tgl_mrs'] = pd.to_datetime(df_full['tgl_mrs'])
+            # Pastikan kolom tanggal terbaca sebagai tanggal
+            df_full['tgl_mrs'] = pd.to_datetime(df_full['tgl_mrs'], errors='coerce')
+            df_full = df_full.dropna(subset=['tgl_mrs']) # hapus jika ada tanggal rusak
             
             st.markdown("### 📊 Filter & Download")
             c_f1, c_f2, c_f3 = st.columns(3)
             with c_f1:
-                bulan_pilih = st.selectbox("Bulan", range(1, 13), format_func=lambda x: datetime(2026, x, 1).strftime('%B'))
+                bulan_pilih = st.selectbox("Bulan", range(1, 13), index=datetime.now().month-1, format_func=lambda x: datetime(2026, x, 1).strftime('%B'))
             with c_f2:
                 tahun_pilih = st.number_input("Tahun", value=datetime.now().year)
             with c_f3:
-                ruang_pilih = st.multiselect("Ruangan", options=sorted(df_full['ruang'].unique()))
+                ruang_pilih = st.multiselect("Ruangan", options=sorted(df_full['ruang'].unique().tolist()))
 
             # Filter Data
             df_res = df_full[(df_full['tgl_mrs'].dt.month == bulan_pilih) & (df_full['tgl_mrs'].dt.year == tahun_pilih)]
@@ -144,13 +159,12 @@ else:
                     df_export.to_excel(writer, index=False, sheet_name='Laporan')
                     
                     ws = writer.sheets['Laporan']
-                    last_row = len(df_res) + 4
+                    last_row_xl = len(df_res) + 4
                     
-                    # TDD Sesuai Permintaan
-                    ws.cell(row=last_row, column=2, value="Kepala Ruangan,")
-                    ws.cell(row=last_row, column=6, value="Kepala Instalasi Gizi,")
-                    ws.cell(row=last_row+4, column=2, value="( ____________________ )")
-                    ws.cell(row=last_row+4, column=6, value="( ____________________ )")
+                    ws.cell(row=last_row_xl, column=2, value="Kepala Ruangan,")
+                    ws.cell(row=last_row_xl, column=6, value="Kepala Instalasi Gizi,")
+                    ws.cell(row=last_row_xl+4, column=2, value="( ____________________ )")
+                    ws.cell(row=last_row_xl+4, column=6, value="( ____________________ )")
 
                 st.download_button(
                     label="📥 DOWNLOAD EXCEL (DENGAN TDD)",
@@ -159,4 +173,4 @@ else:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
         else:
-            st.info("Belum ada data.")
+            st.info("Belum ada data di Google Sheets. Silakan input data pertama!")
