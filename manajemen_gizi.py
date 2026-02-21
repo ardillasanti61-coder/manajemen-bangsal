@@ -68,6 +68,7 @@ else:
                 t_mrs = st.date_input("Tanggal MRS", value=datetime.now())
                 rm = st.text_input("Nomor Rekam Medis (Wajib)")
                 rng = st.selectbox("Ruang Perawatan", ["Anna", "Maria", "Fransiskus", "Teresa", "Monika", "Clement", "ICU/ICCU"])
+                # No Kamar sebagai text_input agar tidak ada koma otomatis
                 no_kamar = st.text_input("Nomor Kamar (Wajib)")
                 nama = st.text_input("Nama Lengkap Pasien (Wajib)")
                 t_lhr = st.date_input("Tanggal Lahir", value=datetime.now())
@@ -92,40 +93,34 @@ else:
                     else: st_gizi = "Data Tidak Lengkap"
 
                     try:
-                        # LOGIKA ANTI-TUMPUK (Membaca data lama dulu)
-                        # ttl=0 agar selalu mengambil data paling baru dari cloud
                         existing_data = conn.read(spreadsheet=URL_SHEETS, ttl=0).dropna(how='all')
                         
+                        # Memastikan no_kamar disimpan sebagai string murni
                         new_row = pd.DataFrame([{
-                            "tgl_mrs": t_mrs.strftime("%Y-%m-%d"), "no_rm": rm, "ruang": rng, "no_kamar": no_kamar, "nama_pasien": nama,
+                            "tgl_mrs": t_mrs.strftime("%Y-%m-%d"), "no_rm": rm, "ruang": rng, 
+                            "no_kamar": str(no_kamar), "nama_pasien": nama,
                             "tgl_lahir": t_lhr.strftime("%Y-%m-%d"), "umur": u_teks, "bb": bb, "tb": tb, "imt": imt_val,
                             "status_gizi": st_gizi, "zscore": z_manual, "diagnosa_medis": d_medis,
                             "skrining_gizi": skrng_gizi, "diet": diet, "input_by": st.session_state['username']
                         }])
                         
-                        # Menggabungkan data lama dengan baris baru di bawahnya
                         updated_df = pd.concat([existing_data, new_row], ignore_index=True)
-                        
-                        # Update balik ke Cloud
                         conn.update(spreadsheet=URL_SHEETS, data=updated_df)
                         
-                        st.success(f"✅ Berhasil Tersimpan ke Baris Baru! Pasien: {nama}")
+                        st.success(f"✅ Tersimpan! Pasien: {nama}")
                         st.balloons()
-                        # Membersihkan cache agar tab rekap langsung update
                         st.cache_data.clear()
                     except Exception as e:
-                        st.error(f"Gagal Simpan. Pastikan Header di Sheets sudah benar. Error: {e}")
+                        st.error(f"Gagal Simpan. Error: {e}")
                 else:
                     st.warning("Nomor RM dan Nama Lengkap wajib diisi!")
 
     with tab2:
-        # Menampilkan data terbaru
         df_full = conn.read(spreadsheet=URL_SHEETS, ttl=0).fillna('')
         
         if not df_full.empty:
-            # Pastikan kolom tanggal terbaca sebagai tanggal
             df_full['tgl_mrs'] = pd.to_datetime(df_full['tgl_mrs'], errors='coerce')
-            df_full = df_full.dropna(subset=['tgl_mrs']) # hapus jika ada tanggal rusak
+            df_full = df_full.dropna(subset=['tgl_mrs']) 
             
             st.markdown("### 📊 Filter & Download")
             c_f1, c_f2, c_f3 = st.columns(3)
@@ -141,6 +136,14 @@ else:
             if ruang_pilih:
                 df_res = df_res[df_res['ruang'].isin(ruang_pilih)]
 
+            # --- PENAMBAHAN NOMOR URUT VISUAL ---
+            df_display = df_res.copy()
+            # Membuat kolom No di paling kiri (1, 2, 3...)
+            df_display.insert(0, 'No', range(1, 1 + len(df_display)))
+
+            # Menampilkan jumlah total pasien hasil filter
+            st.write(f"📌 **Total Pasien Terdaftar: {len(df_res)}**")
+
             # Fungsi Warna Gizi
             def warna_gizi(val):
                 if val == 'Obesitas': return 'background-color: #FF7676'
@@ -149,7 +152,11 @@ else:
                 elif val == 'Kurus': return 'background-color: #9BCFE0'
                 return ''
 
-            st.dataframe(df_res.style.map(warna_gizi, subset=['status_gizi']), use_container_width=True, hide_index=True)
+            # Tampilkan tabel (No Kamar dipaksa jadi string agar koma hilang)
+            if 'no_kamar' in df_display.columns:
+                df_display['no_kamar'] = df_display['no_kamar'].astype(str).replace('\.0', '', regex=True)
+
+            st.dataframe(df_display.style.map(warna_gizi, subset=['status_gizi']), use_container_width=True, hide_index=True)
 
             if not df_res.empty:
                 output = BytesIO()
@@ -160,17 +167,16 @@ else:
                     
                     ws = writer.sheets['Laporan']
                     last_row_xl = len(df_res) + 4
-                    
                     ws.cell(row=last_row_xl, column=2, value="Kepala Ruangan,")
                     ws.cell(row=last_row_xl, column=6, value="Kepala Instalasi Gizi,")
                     ws.cell(row=last_row_xl+4, column=2, value="( ____________________ )")
                     ws.cell(row=last_row_xl+4, column=6, value="( ____________________ )")
 
                 st.download_button(
-                    label="📥 DOWNLOAD EXCEL (DENGAN TDD)",
+                    label="📥 DOWNLOAD EXCEL",
                     data=output.getvalue(),
                     file_name=f"Laporan_Gizi_{bulan_pilih}_{tahun_pilih}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
         else:
-            st.info("Belum ada data di Google Sheets. Silakan input data pertama!")
+            st.info("Belum ada data di Google Sheets.")
