@@ -6,12 +6,16 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 # --- 1. PENGATURAN HALAMAN ---
-st.set_page_config(page_title="Sistem Gizi Pasien - Ardilla", layout="wide")
+st.set_page_config(
+    page_title="Gizi Bangsal Ardilla", 
+    page_icon="🍊", 
+    layout="wide"
+)
 
-# URL Google Sheet kamu
+# URL Google Sheet
 URL_SHEETS = "https://docs.google.com/spreadsheets/d/1oPJUfBl5Ht74IUbt_Qv8XzG51bUmpCwJ_FL7iBO6UR0/edit"
 
-# --- 2. CSS CUSTOM (Tema Hijau Oranye) ---
+# --- 2. CSS CUSTOM (Tema Hijau Gizi) ---
 st.markdown("""
     <style>
     * { cursor: url("https://img.icons8.com/emoji/32/tangerine-emoji.png"), auto !important; }
@@ -27,7 +31,7 @@ st.markdown("""
     }
     .metric-box {
         background-color: white; padding: 15px; border-radius: 15px; text-align: center;
-        border: 2px solid #9BDBA1; margin-bottom: 20px; color: #2D5A27;
+        border: 2px solid #9BDBA1; margin-bottom: 20px; color: #2D5A27; font-size: 1.1em;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -48,6 +52,7 @@ if not st.session_state['login_berhasil']:
             if user_input in users and pw_input == users[user_input]:
                 st.session_state['login_berhasil'] = True
                 st.session_state['username'] = user_input
+                st.toast('Selamat datang kembali!', icon='🍊')
                 st.rerun()
             else:
                 st.error("Username atau Password Salah!")
@@ -67,11 +72,11 @@ else:
     
     tab1, tab_ncp, tab2, tab_rekap_ncp = st.tabs(["➕ Identitas", "📝 Data Klinis", "📊 Rekap Identitas", "📜 Rekap Klinis"])
 
-    # Load Database
+    # Ambil Data Terbaru
     df_identitas = conn.read(spreadsheet=URL_SHEETS, worksheet="Sheet1", ttl=0).fillna('')
     df_ncp = conn.read(spreadsheet=URL_SHEETS, worksheet="NCP", ttl=0).fillna('')
 
-    # --- TAB 1: INPUT IDENTITAS & ANTROPOMETRI ---
+    # --- TAB 1: INPUT IDENTITAS ---
     with tab1:
         with st.form("form_identitas", clear_on_submit=True):
             st.markdown("<h4 style='color:#2D5A27;'>Form Identitas & Skrining</h4>", unsafe_allow_html=True)
@@ -100,106 +105,117 @@ else:
             
             if st.form_submit_button("SIMPAN DATA IDENTITAS"):
                 if rm and nama:
-                    # LOGIKA UMUR: Anak (Thn & Bln), Dewasa (Thn saja)
-                    delta = relativedelta(t_mrs, t_lhr)
-                    if delta.years >= 19:
-                        u_teks = f"{delta.years} Thn"
-                    else:
-                        u_teks = f"{delta.years} Thn {delta.months} Bln"
-                    
-                    imt_val = round(bb / ((tb/100)**2), 2) if bb > 0 and tb > 0 else 0
-                    next_no = len(df_identitas) + 1
-                    
-                    new_row = pd.DataFrame([{
-                        "no": next_no, "tgl_mrs": t_mrs.strftime("%Y-%m-%d"), "no_rm": rm, 
-                        "ruang": rng, "no_kamar": str(no_kamar), "nama_pasien": nama, 
-                        "umur": u_teks, "bb": bb, "tb": tb, "lila": lila, "ulna": ulna, 
-                        "zscore": z_score, "imt": imt_val, "diagnosa_medis": d_medis, 
-                        "skrining": skrining_gizi, "diet": diet, "input_by": st.session_state['username']
-                    }])
-                    updated_df = pd.concat([df_identitas, new_row], ignore_index=True)
-                    conn.update(spreadsheet=URL_SHEETS, worksheet="Sheet1", data=updated_df)
-                    st.success(f"✅ Data {nama} Berhasil Disimpan!"); st.cache_data.clear(); st.rerun()
+                    st.toast('Sedang menyiapkan data...', icon='🍊')
+                    with st.spinner('Menyimpan ke Cloud...'):
+                        delta = relativedelta(t_mrs, t_lhr)
+                        u_teks = f"{delta.years} Thn" if delta.years >= 19 else f"{delta.years} Thn {delta.months} Bln"
+                        imt_val = round(bb / ((tb/100)**2), 2) if bb > 0 and tb > 0 else 0
+                        
+                        new_row = pd.DataFrame([{
+                            "no": len(df_identitas) + 1, "tgl_mrs": t_mrs.strftime("%Y-%m-%d"), "no_rm": rm, 
+                            "ruang": rng, "no_kamar": str(no_kamar), "nama_pasien": nama, 
+                            "umur": u_teks, "bb": bb, "tb": tb, "lila": lila, "ulna": ulna, 
+                            "zscore": z_score, "imt": imt_val, "diagnosa_medis": d_medis, 
+                            "skrining": skrining_gizi, "diet": diet, "input_by": st.session_state['username']
+                        }])
+                        updated_df = pd.concat([df_identitas, new_row], ignore_index=True)
+                        conn.update(spreadsheet=URL_SHEETS, worksheet="Sheet1", data=updated_df)
+                    st.snow()
+                    st.toast(f'Data {nama} Berhasil Tersimpan!', icon='✅')
+                    st.cache_data.clear(); st.rerun()
 
-    # --- TAB 2: DATA KLINIS / NCP (URUTAN A-K) ---
+    # --- TAB 2: DATA KLINIS ---
     with tab_ncp:
         st.markdown("<h4 style='color:#2D5A27;'>Input Data Klinis & Penunjang</h4>", unsafe_allow_html=True)
         if not df_identitas.empty:
             nama_pilih = st.selectbox("Pilih Pasien Dari Database:", options=df_identitas['nama_pasien'].tolist())
             row = df_identitas[df_identitas['nama_pasien'] == nama_pilih].iloc[0]
-            
             with st.form("form_klinis"):
                 st.info(f"📌 Pasien: {row['nama_pasien']} | RM: {row['no_rm']}")
-                bio = st.text_area("Biokimia (Hasil Lab/Hasil Biokimia)")
+                bio = st.text_area("Biokimia (Hasil Lab)")
                 penunjang = st.text_area("Penunjang Lainnya")
                 fk = st.text_area("Fisik / Klinis (F/K)")
-                
                 if st.form_submit_button("SIMPAN DATA KLINIS"):
-                    next_no_ncp = len(df_ncp) + 1
-                    new_ncp = pd.DataFrame([{
-                        "no": next_no_ncp,                               # A
-                        "tgl_input": datetime.now().strftime("%Y-%m-%d"),# B
-                        "no_rm": row['no_rm'],                           # C
-                        "ruang": row['ruang'],                           # D
-                        "no_kamar": row['no_kamar'],                     # E
-                        "nama_pasien": row['nama_pasien'],               # F
-                        "diagnosa_medis": row['diagnosa_medis'],        # G
-                        "biokimia": bio,                                 # H
-                        "penunjang_lainnya": penunjang,                  # I
-                        "fisik_klinis": fk,                              # J
-                        "diet": row['diet']                              # K
-                    }])
-                    updated_ncp = pd.concat([df_ncp, new_ncp], ignore_index=True)
-                    conn.update(spreadsheet=URL_SHEETS, worksheet="NCP", data=updated_ncp)
-                    st.success(f"✅ Catatan Klinis baris #{next_no_ncp} Tersimpan!"); st.cache_data.clear(); st.rerun()
-        else:
-            st.warning("Silakan isi Tab Identitas terlebih dahulu.")
+                    st.toast('Mengunggah data klinis...', icon='📝')
+                    with st.spinner('Menghubungkan ke server...'):
+                        new_ncp = pd.DataFrame([{
+                            "no": len(df_ncp) + 1, "tgl_input": datetime.now().strftime("%Y-%m-%d"),
+                            "no_rm": row['no_rm'], "ruang": row['ruang'], "no_kamar": row['no_kamar'], 
+                            "nama_pasien": row['nama_pasien'], "diagnosa_medis": row['diagnosa_medis'], 
+                            "biokimia": bio, "penunjang_lainnya": penunjang, "fisik_klinis": fk, "diet": row['diet']
+                        }])
+                        updated_ncp = pd.concat([df_ncp, new_ncp], ignore_index=True)
+                        conn.update(spreadsheet=URL_SHEETS, worksheet="NCP", data=updated_ncp)
+                    st.snow()
+                    st.toast('Catatan klinis tersimpan!', icon='❄️')
+                    st.cache_data.clear(); st.rerun()
 
-    # --- TAB 3: REKAP IDENTITAS (TAHUN 1900-2100) ---
+    # Pengaturan Filter Global
+    tahun_skrg = datetime.now().year
+    list_tahun = list(range(1900, 2101))
+
+    # --- TAB 3: REKAP IDENTITAS ---
     with tab2:
-        st.markdown(f"<div class='metric-box'>📊 Database Pasien: <b>{len(df_identitas)}</b></div>", unsafe_allow_html=True)
         if not df_identitas.empty:
             df_identitas['tgl_mrs'] = pd.to_datetime(df_identitas['tgl_mrs'], errors='coerce')
-            
-            # Rentang Tahun 1900 - 2100
-            tahun_skrg = datetime.now().year
-            list_tahun = list(range(1900, 2101))
-            
             f1, f2, f3 = st.columns(3)
-            with f1: bul_p = st.selectbox("Filter Bulan", range(1, 13), index=datetime.now().month-1, format_func=lambda x: datetime(tahun_skrg, x, 1).strftime('%B'))
-            with f2: tah_p = st.selectbox("Filter Tahun", list_tahun, index=list_tahun.index(tahun_skrg))
-            with f3: rng_p = st.multiselect("Filter Ruangan", options=list_ruang, default=list_ruang)
+            with f1: bul_i = st.selectbox("Filter Bulan", range(1, 13), index=datetime.now().month-1, format_func=lambda x: datetime(tahun_skrg, x, 1).strftime('%B'))
+            with f2: tah_i = st.selectbox("Filter Tahun", list_tahun, index=list_tahun.index(tahun_skrg))
+            with f3: rng_i = st.multiselect("Filter Ruangan", options=list_ruang, default=list_ruang)
 
-            mask = (df_identitas['tgl_mrs'].dt.month == bul_p) & (df_identitas['tgl_mrs'].dt.year == tah_p) & (df_identitas['ruang'].isin(rng_p))
-            df_filtered = df_identitas[mask].copy()
-
-            st.dataframe(df_filtered, use_container_width=True, hide_index=True)
+            mask_i = (df_identitas['tgl_mrs'].dt.month == bul_i) & (df_identitas['tgl_mrs'].dt.year == tah_i) & (df_identitas['ruang'].isin(rng_i))
+            df_f_i = df_identitas[mask_i].copy()
             
-            # Download Excel Identitas
-            out_id = BytesIO()
-            with pd.ExcelWriter(out_id, engine='openpyxl') as writer:
-                df_filtered.to_excel(writer, index=False, sheet_name='Identitas')
-            st.download_button("📥 DOWNLOAD REKAP IDENTITAS", data=out_id.getvalue(), file_name=f"Rekap_Identitas_{bul_p}_{tah_p}.xlsx")
+            # Counter Data Identitas
+            st.markdown(f"<div class='metric-box'>📊 Pasien Terfilter: <b>{len(df_f_i)}</b> | Total Database: <b>{len(df_identitas)}</b></div>", unsafe_allow_html=True)
+            
+            st.dataframe(df_f_i, use_container_width=True, hide_index=True)
+            
+            out_i = BytesIO()
+            with pd.ExcelWriter(out_i, engine='openpyxl') as writer:
+                df_f_i.to_excel(writer, index=False, sheet_name='Identitas')
+            st.download_button("📥 DOWNLOAD REKAP IDENTITAS", data=out_i.getvalue(), file_name=f"Rekap_Identitas_{bul_i}_{tah_i}.xlsx")
             
             st.divider()
-            with st.expander("🗑️ Menu Hapus Data"):
-                no_hapus = st.number_input("Masukkan No Urut yang ingin dihapus:", min_value=1, step=1)
-                if st.button("KONFIRMASI HAPUS"):
-                    df_new = df_identitas[df_identitas['no'] != no_hapus]
-                    df_new['no'] = range(1, len(df_new) + 1) # Reset nomor urut
-                    conn.update(spreadsheet=URL_SHEETS, worksheet="Sheet1", data=df_new)
-                    st.success("Data telah dihapus."); st.cache_data.clear(); st.rerun()
+            with st.expander("🗑️ Hapus Data Identitas"):
+                no_h = st.number_input("Masukkan No Urut Identitas yang ingin dihapus:", min_value=1, step=1, key="del_id")
+                if st.button("HAPUS DATA IDENTITAS"):
+                    with st.spinner('Menghapus...'):
+                        df_new = df_identitas[df_identitas['no'] != no_h]
+                        df_new['no'] = range(1, len(df_new) + 1)
+                        conn.update(spreadsheet=URL_SHEETS, worksheet="Sheet1", data=df_new)
+                    st.toast('Data berhasil dihapus', icon='🗑️')
+                    st.cache_data.clear(); st.rerun()
 
-    # --- TAB 4: REKAP KLINIS (URUTAN A-K) ---
+    # --- TAB 4: REKAP KLINIS ---
     with tab_rekap_ncp:
-        st.markdown(f"<div class='metric-box'>📜 Total Seluruh Catatan Klinis: <b>{len(df_ncp)}</b></div>", unsafe_allow_html=True)
         if not df_ncp.empty:
-            st.dataframe(df_ncp, use_container_width=True, hide_index=True)
+            df_ncp['tgl_input'] = pd.to_datetime(df_ncp['tgl_input'], errors='coerce')
+            k1, k2, k3 = st.columns(3)
+            with k1: bul_k = st.selectbox("Filter Bulan (Klinis)", range(1, 13), index=datetime.now().month-1, format_func=lambda x: datetime(tahun_skrg, x, 1).strftime('%B'))
+            with k2: tah_k = st.selectbox("Filter Tahun (Klinis)", list_tahun, index=list_tahun.index(tahun_skrg))
+            with k3: rng_k = st.multiselect("Filter Ruangan (Klinis)", options=list_ruang, default=list_ruang)
+
+            mask_k = (df_ncp['tgl_input'].dt.month == bul_k) & (df_ncp['tgl_input'].dt.year == tah_k) & (df_ncp['ruang'].isin(rng_k))
+            df_f_k = df_ncp[mask_k].copy()
             
-            # Download Excel NCP
-            out_kl = BytesIO()
-            with pd.ExcelWriter(out_kl, engine='openpyxl') as writer:
-                df_ncp.to_excel(writer, index=False, sheet_name='Data_Klinis_NCP')
-            st.download_button("📥 DOWNLOAD REKAP KLINIS NCP", data=out_kl.getvalue(), file_name="Rekap_Klinis_NCP.xlsx")
-        else:
-            st.info("Belum ada data klinis yang tersimpan.")
+            # Counter Data Klinis
+            st.markdown(f"<div class='metric-box'>📜 Catatan Terfilter: <b>{len(df_f_k)}</b> | Total Database: <b>{len(df_ncp)}</b></div>", unsafe_allow_html=True)
+            
+            st.dataframe(df_f_k, use_container_width=True, hide_index=True)
+            
+            out_k = BytesIO()
+            with pd.ExcelWriter(out_k, engine='openpyxl') as writer:
+                df_f_k.to_excel(writer, index=False, sheet_name='Klinis')
+            st.download_button("📥 DOWNLOAD REKAP KLINIS", data=out_k.getvalue(), file_name=f"Rekap_Klinis_{bul_k}_{tah_k}.xlsx")
+
+            st.divider()
+            with st.expander("🗑️ Menu Hapus Catatan Klinis"):
+                no_h_k = st.number_input("Masukkan No Urut Klinis yang ingin dihapus:", min_value=1, step=1, key="del_klinis")
+                if st.button("HAPUS CATATAN KLINIS"):
+                    with st.spinner('Menghapus...'):
+                        df_new_ncp = df_ncp[df_ncp['no'] != no_h_k]
+                        df_new_ncp['no'] = range(1, len(df_new_ncp) + 1)
+                        conn.update(spreadsheet=URL_SHEETS, worksheet="NCP", data=df_new_ncp)
+                    st.toast('Catatan berhasil dihapus!', icon='🗑️')
+                    st.cache_data.clear(); st.rerun()
