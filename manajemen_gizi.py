@@ -47,7 +47,6 @@ if not st.session_state['login_berhasil']:
             else:
                 st.error("Username atau Password Salah!")
 else:
-    # Koneksi ke GSheets
     conn = st.connection("gsheets", type=GSheetsConnection)
 
     with st.sidebar:
@@ -68,7 +67,6 @@ else:
                 t_mrs = st.date_input("Tanggal MRS", value=datetime.now())
                 rm = st.text_input("Nomor Rekam Medis (Wajib)")
                 rng = st.selectbox("Ruang Perawatan", ["Anna", "Maria", "Fransiskus", "Teresa", "Monika", "Clement", "ICU/ICCU"])
-                # No Kamar sebagai text_input agar tidak ada koma otomatis
                 no_kamar = st.text_input("Nomor Kamar (Wajib)")
                 nama = st.text_input("Nama Lengkap Pasien (Wajib)")
                 t_lhr = st.date_input("Tanggal Lahir", value=datetime.now())
@@ -94,8 +92,6 @@ else:
 
                     try:
                         existing_data = conn.read(spreadsheet=URL_SHEETS, ttl=0).dropna(how='all')
-                        
-                        # Memastikan no_kamar disimpan sebagai string murni
                         new_row = pd.DataFrame([{
                             "tgl_mrs": t_mrs.strftime("%Y-%m-%d"), "no_rm": rm, "ruang": rng, 
                             "no_kamar": str(no_kamar), "nama_pasien": nama,
@@ -103,15 +99,13 @@ else:
                             "status_gizi": st_gizi, "zscore": z_manual, "diagnosa_medis": d_medis,
                             "skrining_gizi": skrng_gizi, "diet": diet, "input_by": st.session_state['username']
                         }])
-                        
                         updated_df = pd.concat([existing_data, new_row], ignore_index=True)
                         conn.update(spreadsheet=URL_SHEETS, data=updated_df)
-                        
                         st.success(f"✅ Tersimpan! Pasien: {nama}")
                         st.balloons()
                         st.cache_data.clear()
                     except Exception as e:
-                        st.error(f"Gagal Simpan. Error: {e}")
+                        st.error(f"Gagal Simpan: {e}")
                 else:
                     st.warning("Nomor RM dan Nama Lengkap wajib diisi!")
 
@@ -120,41 +114,50 @@ else:
         
         if not df_full.empty:
             df_full['tgl_mrs'] = pd.to_datetime(df_full['tgl_mrs'], errors='coerce')
-            df_full = df_full.dropna(subset=['tgl_mrs']) 
             
-            st.markdown("### 📊 Filter & Download")
-            c_f1, c_f2, c_f3 = st.columns(3)
+            # --- MENU HAPUS DATA (DITAMBAHKAN KEMBALI) ---
+            st.markdown("### ⚙️ Pengelolaan Data")
+            with st.expander("🗑️ Hapus Data Salah Input"):
+                st.warning("Hati-hati! Data yang dihapus tidak bisa dikembalikan.")
+                # Menggunakan index asli dari Google Sheets untuk menghapus
+                index_hapus = st.number_input("Masukkan 'No' dari tabel di bawah yang ingin dihapus", min_value=1, max_value=len(df_full), step=1)
+                if st.button("KONFIRMASI HAPUS DATA"):
+                    try:
+                        df_dropped = df_full.drop(df_full.index[index_hapus-1])
+                        conn.update(spreadsheet=URL_SHEETS, data=df_dropped)
+                        st.success(f"Data nomor {index_hapus} berhasil dihapus!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Gagal menghapus: {e}")
+
+            st.divider()
+            
+            # --- FILTER ---
+            c_f1, c_f2 = st.columns(2)
             with c_f1:
                 bulan_pilih = st.selectbox("Bulan", range(1, 13), index=datetime.now().month-1, format_func=lambda x: datetime(2026, x, 1).strftime('%B'))
             with c_f2:
                 tahun_pilih = st.number_input("Tahun", value=datetime.now().year)
-            with c_f3:
-                ruang_pilih = st.multiselect("Ruangan", options=sorted(df_full['ruang'].unique().tolist()))
 
-            # Filter Data
             df_res = df_full[(df_full['tgl_mrs'].dt.month == bulan_pilih) & (df_full['tgl_mrs'].dt.year == tahun_pilih)]
-            if ruang_pilih:
-                df_res = df_res[df_res['ruang'].isin(ruang_pilih)]
-
-            # --- PENAMBAHAN NOMOR URUT VISUAL ---
+            
+            # Penambahan nomor urut visual
             df_display = df_res.copy()
-            # Membuat kolom No di paling kiri (1, 2, 3...)
             df_display.insert(0, 'No', range(1, 1 + len(df_display)))
+            
+            # Bersihkan koma di No Kamar saat ditampilkan
+            if 'no_kamar' in df_display.columns:
+                df_display['no_kamar'] = df_display['no_kamar'].astype(str).replace('\.0', '', regex=True)
 
-            # Menampilkan jumlah total pasien hasil filter
-            st.write(f"📌 **Total Pasien Terdaftar: {len(df_res)}**")
+            st.write(f"📊 **Total Pasien Terdaftar Bulan Ini: {len(df_res)}**")
 
-            # Fungsi Warna Gizi
             def warna_gizi(val):
                 if val == 'Obesitas': return 'background-color: #FF7676'
                 elif val == 'Overweight': return 'background-color: #FFD966'
                 elif val == 'Normal': return 'background-color: #A9D18E'
                 elif val == 'Kurus': return 'background-color: #9BCFE0'
                 return ''
-
-            # Tampilkan tabel (No Kamar dipaksa jadi string agar koma hilang)
-            if 'no_kamar' in df_display.columns:
-                df_display['no_kamar'] = df_display['no_kamar'].astype(str).replace('\.0', '', regex=True)
 
             st.dataframe(df_display.style.map(warna_gizi, subset=['status_gizi']), use_container_width=True, hide_index=True)
 
@@ -164,19 +167,6 @@ else:
                     df_export = df_res.copy()
                     df_export['tgl_mrs'] = df_export['tgl_mrs'].dt.strftime('%Y-%m-%d')
                     df_export.to_excel(writer, index=False, sheet_name='Laporan')
-                    
-                    ws = writer.sheets['Laporan']
-                    last_row_xl = len(df_res) + 4
-                    ws.cell(row=last_row_xl, column=2, value="Kepala Ruangan,")
-                    ws.cell(row=last_row_xl, column=6, value="Kepala Instalasi Gizi,")
-                    ws.cell(row=last_row_xl+4, column=2, value="( ____________________ )")
-                    ws.cell(row=last_row_xl+4, column=6, value="( ____________________ )")
-
-                st.download_button(
-                    label="📥 DOWNLOAD EXCEL",
-                    data=output.getvalue(),
-                    file_name=f"Laporan_Gizi_{bulan_pilih}_{tahun_pilih}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                st.download_button(label="📥 DOWNLOAD EXCEL", data=output.getvalue(), file_name=f"Laporan_Gizi.xlsx")
         else:
-            st.info("Belum ada data di Google Sheets.")
+            st.info("Belum ada data.")
