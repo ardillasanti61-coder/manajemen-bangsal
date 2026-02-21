@@ -10,7 +10,7 @@ st.set_page_config(page_title="Sistem Gizi Pasien", layout="wide")
 
 URL_SHEETS = "https://docs.google.com/spreadsheets/d/1oPJUfBl5Ht74IUbt_Qv8XzG51bUmpCwJ_FL7iBO6UR0/edit"
 
-# --- 2. CSS CUSTOM ---
+# --- 2. CSS CUSTOM (DITAMBAH UNTUK ESTETIKA HAPUS) ---
 st.markdown("""
     <style>
     * { cursor: url("https://img.icons8.com/emoji/32/tangerine-emoji.png"), auto !important; }
@@ -20,9 +20,19 @@ st.markdown("""
         box-shadow: 0px 15px 35px rgba(0,0,0,0.1); border: 2px solid #9BDBA1; max-width: 500px; margin: 2% auto !important;
     }
     .main-title { color: #2D5A27; font-family: 'Segoe UI', sans-serif; font-weight: 800; text-align: center; }
+    
+    /* Tombol Utama */
     div.stButton > button {
         background: linear-gradient(to right, #43766C, #729762) !important; color: white !important;
         border-radius: 12px !important; font-weight: bold; width: 100%; height: 3em; border: none !important;
+    }
+
+    /* Styling khusus Area Hapus di bawah */
+    .delete-container {
+        background-color: #ffe5e5;
+        padding: 20px;
+        border-radius: 20px;
+        border: 1px solid #ffcccc;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -115,25 +125,7 @@ else:
         if not df_full.empty:
             df_full['tgl_mrs'] = pd.to_datetime(df_full['tgl_mrs'], errors='coerce')
             
-            # --- MENU HAPUS DATA (DITAMBAHKAN KEMBALI) ---
-            st.markdown("### ⚙️ Pengelolaan Data")
-            with st.expander("🗑️ Hapus Data Salah Input"):
-                st.warning("Hati-hati! Data yang dihapus tidak bisa dikembalikan.")
-                # Menggunakan index asli dari Google Sheets untuk menghapus
-                index_hapus = st.number_input("Masukkan 'No' dari tabel di bawah yang ingin dihapus", min_value=1, max_value=len(df_full), step=1)
-                if st.button("KONFIRMASI HAPUS DATA"):
-                    try:
-                        df_dropped = df_full.drop(df_full.index[index_hapus-1])
-                        conn.update(spreadsheet=URL_SHEETS, data=df_dropped)
-                        st.success(f"Data nomor {index_hapus} berhasil dihapus!")
-                        st.cache_data.clear()
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Gagal menghapus: {e}")
-
-            st.divider()
-            
-            # --- FILTER ---
+            # --- 1. FILTER DI ATAS ---
             c_f1, c_f2 = st.columns(2)
             with c_f1:
                 bulan_pilih = st.selectbox("Bulan", range(1, 13), index=datetime.now().month-1, format_func=lambda x: datetime(2026, x, 1).strftime('%B'))
@@ -142,16 +134,15 @@ else:
 
             df_res = df_full[(df_full['tgl_mrs'].dt.month == bulan_pilih) & (df_full['tgl_mrs'].dt.year == tahun_pilih)]
             
-            # Penambahan nomor urut visual
             df_display = df_res.copy()
             df_display.insert(0, 'No', range(1, 1 + len(df_display)))
             
-            # Bersihkan koma di No Kamar saat ditampilkan
             if 'no_kamar' in df_display.columns:
                 df_display['no_kamar'] = df_display['no_kamar'].astype(str).replace('\.0', '', regex=True)
 
             st.write(f"📊 **Total Pasien Terdaftar Bulan Ini: {len(df_res)}**")
 
+            # Tabel Utama
             def warna_gizi(val):
                 if val == 'Obesitas': return 'background-color: #FF7676'
                 elif val == 'Overweight': return 'background-color: #FFD966'
@@ -161,6 +152,7 @@ else:
 
             st.dataframe(df_display.style.map(warna_gizi, subset=['status_gizi']), use_container_width=True, hide_index=True)
 
+            # Tombol Download
             if not df_res.empty:
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -168,5 +160,34 @@ else:
                     df_export['tgl_mrs'] = df_export['tgl_mrs'].dt.strftime('%Y-%m-%d')
                     df_export.to_excel(writer, index=False, sheet_name='Laporan')
                 st.download_button(label="📥 DOWNLOAD EXCEL", data=output.getvalue(), file_name=f"Laporan_Gizi.xlsx")
+
+            # --- 2. FITUR HAPUS DI PALING BAWAH (SECANTIK MUNGKIN) ---
+            st.markdown("<br><br><br>", unsafe_allow_html=True)
+            st.divider()
+            
+            # Menggunakan columns untuk memposisikan area hapus agar tidak selebar layar
+            col_kosong, col_hapus, col_kosong2 = st.columns([1, 2, 1])
+            
+            with col_hapus:
+                st.markdown("### 🛠️ Pengaturan Lanjutan")
+                with st.expander("🗑️ Klik di sini untuk menghapus data yang salah"):
+                    st.write("Silakan pilih nomor urut data yang ingin dihapus selamanya:")
+                    
+                    # Ambil list nomor dari tabel untuk pilihan drop-down agar lebih estetik
+                    list_nomor = list(range(1, len(df_full) + 1))
+                    no_target = st.selectbox("Pilih Nomor (No):", list_nomor)
+                    
+                    if st.button("HAPUS DATA TERPILIH"):
+                        try:
+                            # Logika hapus berdasarkan index
+                            df_dropped = df_full.drop(df_full.index[no_target-1])
+                            conn.update(spreadsheet=URL_SHEETS, data=df_dropped)
+                            
+                            st.toast(f"Data nomor {no_target} berhasil dibersihkan!", icon="🧹")
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Gagal hapus: {e}")
+
         else:
             st.info("Belum ada data.")
