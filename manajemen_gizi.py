@@ -47,19 +47,17 @@ def warna_imt(val):
         elif 18.5 <= val < 25.0: return 'background-color: #9BDBA1; color: black;' # Hijau
         elif 25.0 <= val < 27.0: return 'background-color: #FFA447; color: black;' # Orange
         else: return 'background-color: #FF6969; color: white;'            # Merah
-    except:
-        return ''
+    except: return ''
 
 def label_imt(val):
     try:
         val = float(val)
         if val <= 0: return ""
-        if val < 18.5: return "Kurus (Underweight)"
+        if val < 18.5: return "Kurus"
         elif 18.5 <= val < 25.0: return "Normal"
         elif 25.0 <= val < 27.0: return "Overweight"
         else: return "Obesitas"
-    except:
-        return ""
+    except: return ""
 
 def bersihkan_tabel(df):
     if df.empty: return df
@@ -72,21 +70,25 @@ def bersihkan_tabel(df):
         elif col in ['no', 'no_rm', 'no_kamar']:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int).astype(str).replace('0', '')
 
-    # 2. KHUSUS IDENTITAS: Hitung IMT & Status Gizi
-    if 'bb' in df.columns and 'tb' in df.columns:
-        for col in ['bb', 'tb', 'lila', 'ulna']:
+    # 2. KHUSUS IDENTITAS: Rapikan Angka (BB, TB, LILA, ULNA) & Hitung IMT
+    kolom_angka = ['bb', 'tb', 'lila', 'ulna']
+    if all(x in df.columns for x in ['bb', 'tb']):
+        for col in kolom_angka:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         
-        # Hitung IMT (Angka)
+        # Hitung IMT murni
         df['imt_num'] = df.apply(lambda r: round(r['bb']/((r['tb']/100)**2), 2) if float(r['bb'])>0 and float(r['tb'])>0 else 0, axis=1)
         
-        # Munculkan Teks Status Gizi
+        # Label Status Gizi
         df['status_gizi'] = df['imt_num'].apply(label_imt)
         
-        # Format kolom IMT untuk tampilan
+        # PAKSA FORMAT 2 ANGKA BELAKANG KOMA UNTUK TAMPILAN
+        for col in kolom_angka:
+            if col in df.columns:
+                df[col] = df[col].apply(lambda x: f"{float(x):.2f}")
         df['imt'] = df['imt_num'].apply(lambda x: f"{float(x):.2f}")
-        df = df.drop(columns=['imt_num']) 
+        df = df.drop(columns=['imt_num'])
             
     return df
 
@@ -210,7 +212,6 @@ else:
             df_f = df_clean[mask].drop(columns=['dt_obj']).copy()
 
             st.markdown(f"<div class='metric-box'>📊 Terfilter: <b>{len(df_f)}</b> Pasien</div>", unsafe_allow_html=True)
-            # Bagian ini memerlukan fungsi warna_imt
             st.dataframe(df_f.style.applymap(warna_imt, subset=['imt']), use_container_width=True, hide_index=True)
             
             out = BytesIO()
