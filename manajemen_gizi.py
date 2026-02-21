@@ -37,7 +37,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNGSI WARNA STATUS GIZI (PASTI JALAN) ---
+# --- FUNGSI WARNA STATUS GIZI ---
 def warna_imt(val):
     try:
         val = float(val)
@@ -48,6 +48,33 @@ def warna_imt(val):
         else: return 'background-color: #FF6969; color: white;'            # Merah
     except:
         return ''
+
+# --- FUNGSI PEMBERSIH TABEL (AGAR TIDAK BERANAK) ---
+def bersihkan_tabel(df):
+    if df.empty: return df
+    df = df.copy()
+    
+    # 1. Paksa kolom antropometri jadi angka murni agar bisa diproses
+    for col in ['bb', 'tb', 'lila', 'ulna']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            
+    # 2. Hitung/Update IMT (2 angka di belakang koma)
+    df['imt'] = df.apply(lambda r: round(r['bb']/((r['tb']/100)**2), 2) if r['bb']>0 and r['tb']>0 else 0, axis=1)
+
+    # 3. Format tampilan akhir menjadi teks yang rapi
+    for col in df.columns:
+        # Rapikan Tanggal
+        if 'tgl' in col or 'tanggal' in col.lower():
+            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%m-%Y')
+        # Rapikan No, RM, Kamar (Hapus .0)
+        elif col in ['no', 'no_rm', 'no_kamar']:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int).astype(str).replace('0', '')
+        # Rapikan Angka (Paksa 2 angka belakang koma)
+        elif col in ['bb', 'tb', 'lila', 'ulna', 'imt']:
+            df[col] = df[col].apply(lambda x: f"{float(x):.2f}")
+            
+    return df
 
 # --- 3. LOGIKA LOGIN ---
 if 'login_berhasil' not in st.session_state:
@@ -72,7 +99,6 @@ else:
     # --- 4. KONEKSI DATA ---
     conn = st.connection("gsheets", type=GSheetsConnection)
     list_ruang = ["Anna", "Maria", "Fransiskus", "Teresa", "Monika", "Clement", "ICU/ICCU"]
-    tahun_skrg = datetime.now().year
 
     with st.sidebar:
         st.image("https://i.pinimg.com/1200x/fc/c1/cf/fcc1cf25a5c2be11134b8a9685371f15.jpg", width=120)
@@ -84,35 +110,9 @@ else:
     st.markdown(f"<h1 class='main-title'>Manajemen Bangsal - {st.session_state['username'].upper()}</h1>", unsafe_allow_html=True)
     tab1, tab_ncp, tab2, tab_rekap_ncp = st.tabs(["➕ Identitas", "📝 Data Klinis", "📊 Rekap Identitas", "📜 Rekap Klinis"])
 
-    # --- LOAD & CLEAN DATA ---
+    # AMBIL DATA ASLI DARI SHEETS
     df_identitas = conn.read(spreadsheet=URL_SHEETS, worksheet="Sheet1", ttl=0).fillna('')
     df_ncp = conn.read(spreadsheet=URL_SHEETS, worksheet="NCP", ttl=0).fillna('')
-
-    # Pembersihan Data Identitas
-    if not df_identitas.empty:
-        # Konversi angka antropometri
-        for col in ['bb', 'tb', 'lila', 'ulna']:
-            df_identitas[col] = pd.to_numeric(df_identitas[col], errors='coerce').fillna(0)
-        
-        # HITUNG ULANG IMT (Agar data lama & baru konsisten muncul warna)
-        df_identitas['imt'] = df_identitas.apply(lambda r: round(r['bb']/((r['tb']/100)**2), 1) if r['bb']>0 and r['tb']>0 else 0, axis=1)
-        
-        # Rapikan Tanggal (Tanpa Jam)
-        for col in ['tgl_mrs', 'tgl_lahir']:
-            if col in df_identitas.columns and not df_identitas[col].empty:
-                df_identitas[col] = pd.to_datetime(df_identitas[col], errors='coerce').dt.strftime('%d-%m-%Y')
-        
-        # Hilangkan .0 pada No, RM, Kamar
-        for col in ['no', 'no_rm', 'no_kamar']:
-            if col in df_identitas.columns:
-                df_identitas[col] = df_identitas[col].astype(str).str.replace('.0', '', regex=False)
-
-    # Pembersihan Data Klinis
-    if not df_ncp.empty:
-        df_ncp['tgl_input_dt'] = pd.to_datetime(df_ncp['tgl_input'], errors='coerce')
-        for col in ['no', 'no_rm', 'no_kamar']:
-            if col in df_ncp.columns:
-                df_ncp[col] = df_ncp[col].astype(str).str.replace('.0', '', regex=False)
 
     # --- TAB 1: INPUT IDENTITAS ---
     with tab1:
@@ -133,24 +133,27 @@ else:
 
             st.markdown("---")
             ca1, ca2, ca3, ca4 = st.columns(4)
-            with ca1: bb = st.number_input("BB (kg)", min_value=0.0, step=0.1)
-            with ca2: tb = st.number_input("TB (cm)", min_value=0.0, step=0.1)
-            with ca3: lila = st.number_input("LILA (cm)", min_value=0.0, step=0.1)
-            with ca4: ulna = st.number_input("ULNA (cm)", min_value=0.0, step=0.1)
+            # Input sudah dibatasi 2 angka belakang koma (format="%.2f")
+            with ca1: bb = st.number_input("BB (kg)", min_value=0.0, step=0.1, format="%.2f")
+            with ca2: tb = st.number_input("TB (cm)", min_value=0.0, step=0.1, format="%.2f")
+            with ca3: lila = st.number_input("LILA (cm)", min_value=0.0, step=0.1, format="%.2f")
+            with ca4: ulna = st.number_input("ULNA (cm)", min_value=0.0, step=0.1, format="%.2f")
             z_score = st.text_input("Z-Score (Khusus Anak)")
             
             if st.form_submit_button("SIMPAN DATA IDENTITAS"):
                 if rm and nama:
                     delta = relativedelta(t_mrs, t_lhr)
                     u_teks = f"{delta.years} Thn" if delta.years >= 19 else f"{delta.years} Thn {delta.months} Bln"
-                    # Simpan IMT dasar
-                    imt_val = round(bb / ((tb/100)**2), 1) if bb > 0 and tb > 0 else 0
+                    
+                    # HITUNG IMT SEBELUM SIMPAN (Agar di database tidak 0)
+                    imt_awal = round(bb / ((tb/100)**2), 2) if bb > 0 and tb > 0 else 0
                     
                     new_row = pd.DataFrame([{
                         "no": len(df_identitas) + 1, "tgl_mrs": t_mrs.strftime("%Y-%m-%d"), "no_rm": rm, 
                         "ruang": rng, "no_kamar": str(no_kamar), "nama_pasien": nama, 
                         "tgl_lahir": t_lhr.strftime("%Y-%m-%d"), "umur": u_teks, "bb": bb, "tb": tb, 
-                        "lila": lila, "ulna": ulna, "zscore": z_score, "imt": imt_val, 
+                        "lila": lila, "ulna": ulna, "zscore": z_score, 
+                        "imt": imt_awal, 
                         "diagnosa_medis": d_medis, "skrining": skrining_gizi, "diet": diet, 
                         "input_by": st.session_state['username']
                     }])
@@ -161,7 +164,12 @@ else:
     with tab_ncp:
         st.markdown("<h4 style='color:#2D5A27;'>Input Data Klinis</h4>", unsafe_allow_html=True)
         if not df_identitas.empty:
-            list_p = df_identitas['nama_pasien'].tolist() if st.session_state['username'] == "ardilla" else df_identitas[df_identitas['input_by'] == st.session_state['username']]['nama_pasien'].tolist()
+            # Hak akses untuk list pasien
+            if st.session_state['username'] == "ardilla":
+                list_p = df_identitas['nama_pasien'].tolist()
+            else:
+                list_p = df_identitas[df_identitas['input_by'] == st.session_state['username']]['nama_pasien'].tolist()
+            
             if list_p:
                 nama_pilih = st.selectbox("Pilih Pasien:", options=list_p)
                 row = df_identitas[df_identitas['nama_pasien'] == nama_pilih].iloc[0]
@@ -178,29 +186,29 @@ else:
                             "biokimia": bio, "penunjang_lainnya": penunjang, "fisik_klinis": fk, "diet": row['diet'],
                             "input_by": st.session_state['username']
                         }])
-                        conn.update(spreadsheet=URL_SHEETS, worksheet="NCP", data=pd.concat([df_ncp.drop(columns=['tgl_input_dt'], errors='ignore'), new_ncp], ignore_index=True))
+                        conn.update(spreadsheet=URL_SHEETS, worksheet="NCP", data=pd.concat([df_ncp, new_ncp], ignore_index=True))
                         st.snow(); st.toast('Tersimpan!', icon='❄️'); st.cache_data.clear(); st.rerun()
 
-    # --- TAB 3: REKAP IDENTITAS (DENGAN WARNA) ---
+    # --- TAB 3: REKAP IDENTITAS (DENGAN WARNA & PEMBERSIH) ---
     with tab2:
         if not df_identitas.empty:
-            df_view = df_identitas if st.session_state['username'] == "ardilla" else df_identitas[df_identitas['input_by'] == st.session_state['username']]
+            # Hak Akses
+            df_view_raw = df_identitas if st.session_state['username'] == "ardilla" else df_identitas[df_identitas['input_by'] == st.session_state['username']]
+            # Bersihkan Data agar angka tidak beranak
+            df_clean = bersihkan_tabel(df_view_raw)
             
             f1, f2, f3 = st.columns(3)
             with f1: bul_i = st.selectbox("Bulan", range(1, 13), index=datetime.now().month-1, key="b1")
             with f2: tah_i = st.selectbox("Tahun", range(2024, 2031), index=datetime.now().year-2024, key="t1")
             with f3: rng_i = st.multiselect("Ruangan", options=list_ruang, key="r1")
             
-            df_temp = df_view.copy()
-            df_temp['dt_obj'] = pd.to_datetime(df_temp['tgl_mrs'], format='%d-%m-%Y', errors='coerce')
+            # Filter Data Berdasarkan Bulan/Tahun/Ruang
+            df_clean['dt_obj'] = pd.to_datetime(df_clean['tgl_mrs'], format='%d-%m-%Y', errors='coerce')
             sel_rooms = rng_i if rng_i else list_ruang
-            mask = (df_temp['dt_obj'].dt.month == bul_i) & (df_temp['dt_obj'].dt.year == tah_i) & (df_temp['ruang'].isin(sel_rooms))
-            df_f = df_temp[mask].drop(columns=['dt_obj']).copy()
+            mask = (df_clean['dt_obj'].dt.month == bul_i) & (df_clean['dt_obj'].dt.year == tah_i) & (df_clean['ruang'].isin(sel_rooms))
+            df_f = df_clean[mask].drop(columns=['dt_obj']).copy()
 
-            # Pastikan IMT numerik untuk warna
-            df_f['imt'] = pd.to_numeric(df_f['imt'], errors='coerce').fillna(0)
-
-            st.markdown(f"<div class='metric-box'>📊 Terfilter: <b>{len(df_f)}</b></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='metric-box'>📊 Terfilter: <b>{len(df_f)}</b> Pasien</div>", unsafe_allow_html=True)
             st.dataframe(df_f.style.applymap(warna_imt, subset=['imt']), use_container_width=True, hide_index=True)
             
             out = BytesIO()
@@ -210,24 +218,24 @@ else:
     # --- TAB 4: REKAP KLINIS ---
     with tab_rekap_ncp:
         if not df_ncp.empty:
-            df_view_k = df_ncp if st.session_state['username'] == "ardilla" else df_ncp[df_ncp.get('input_by','') == st.session_state['username']]
+            # Hak Akses
+            df_view_k_raw = df_ncp if st.session_state['username'] == "ardilla" else df_ncp[df_ncp['input_by'] == st.session_state['username']]
+            # Bersihkan Data Klinis
+            df_clean_k = bersihkan_tabel(df_view_k_raw)
             
             k1, k2, k3 = st.columns(3)
             with k1: bul_k = st.selectbox("Bulan (Klinis)", range(1, 13), index=datetime.now().month-1, key="b2")
             with k2: tah_k = st.selectbox("Tahun (Klinis)", range(2024, 2031), index=datetime.now().year-2024, key="t2")
             with k3: rng_k = st.multiselect("Ruangan (Klinis)", options=list_ruang, key="r2")
 
+            df_clean_k['dt_obj'] = pd.to_datetime(df_clean_k['tgl_input'], format='%d-%m-%Y', errors='coerce')
             sel_rooms_k = rng_k if rng_k else list_ruang
-            mask_k = (df_view_k['tgl_input_dt'].dt.month == bul_k) & (df_view_k['tgl_input_dt'].dt.year == tah_k) & (df_view_k['ruang'].isin(sel_rooms_k))
-            df_f_k = df_view_k[mask_k].copy()
-            
-            # Rapikan tampilan tanggal & hapus kolom pembantu
-            df_f_k['tgl_input'] = df_f_k['tgl_input_dt'].dt.strftime('%d-%m-%Y')
-            df_display_k = df_f_k.drop(columns=['tgl_input_dt'])
+            mask_k = (df_clean_k['dt_obj'].dt.month == bul_k) & (df_clean_k['dt_obj'].dt.year == tah_k) & (df_clean_k['ruang'].isin(sel_rooms_k))
+            df_f_k = df_clean_k[mask_k].drop(columns=['dt_obj']).copy()
 
-            st.markdown(f"<div class='metric-box'>📜 Catatan Klinis Terfilter: <b>{len(df_display_k)}</b></div>", unsafe_allow_html=True)
-            st.dataframe(df_display_k, use_container_width=True, hide_index=True)
+            st.markdown(f"<div class='metric-box'>📜 Catatan Klinis: <b>{len(df_f_k)}</b> Pasien</div>", unsafe_allow_html=True)
+            st.dataframe(df_f_k, use_container_width=True, hide_index=True)
             
             out_k = BytesIO()
-            with pd.ExcelWriter(out_k, engine='openpyxl') as writer: df_display_k.to_excel(writer, index=False)
+            with pd.ExcelWriter(out_k, engine='openpyxl') as writer: df_f_k.to_excel(writer, index=False)
             st.download_button("📥 DOWNLOAD KLINIS", data=out_k.getvalue(), file_name="Rekap_Klinis.xlsx")
