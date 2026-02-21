@@ -32,6 +32,7 @@ st.markdown("""
     .metric-box {
         background-color: white; padding: 15px; border-radius: 15px; text-align: center;
         border: 2px solid #9BDBA1; margin-bottom: 20px; color: #2D5A27; font-size: 1.1em;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.05);
     }
     </style>
     """, unsafe_allow_html=True)
@@ -82,10 +83,11 @@ else:
             st.markdown("<h4 style='color:#2D5A27;'>Form Identitas & Skrining</h4>", unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             with c1:
-                t_mrs = st.date_input("Tanggal MRS", value=datetime.now())
+                t_mrs = st.date_input("Tanggal MRS", value=datetime.now(), max_value=datetime(2100, 12, 31))
                 rm = st.text_input("Nomor Rekam Medis (Wajib)")
                 nama = st.text_input("Nama Lengkap Pasien (Wajib)")
-                t_lhr = st.date_input("Tanggal Lahir", value=datetime.now())
+                # FITUR LANSIA: Mulai 1900
+                t_lhr = st.date_input("Tanggal Lahir", value=datetime(1990, 1, 1), min_value=datetime(1900, 1, 1), max_value=datetime.now())
             with c2:
                 rng = st.selectbox("Ruang Perawatan", list_ruang)
                 no_kamar = st.text_input("Nomor Kamar (Wajib)")
@@ -105,8 +107,8 @@ else:
             
             if st.form_submit_button("SIMPAN DATA IDENTITAS"):
                 if rm and nama:
-                    st.toast('Sedang menyiapkan data...', icon='🍊')
-                    with st.spinner('Menyimpan ke Cloud...'):
+                    st.toast('Sedang menyiapkan data...', icon='🍊') # FITUR TOAST
+                    with st.spinner('Menyimpan ke Cloud...'):         # FITUR SPINNER
                         delta = relativedelta(t_mrs, t_lhr)
                         u_teks = f"{delta.years} Thn" if delta.years >= 19 else f"{delta.years} Thn {delta.months} Bln"
                         imt_val = round(bb / ((tb/100)**2), 2) if bb > 0 and tb > 0 else 0
@@ -120,7 +122,7 @@ else:
                         }])
                         updated_df = pd.concat([df_identitas, new_row], ignore_index=True)
                         conn.update(spreadsheet=URL_SHEETS, worksheet="Sheet1", data=updated_df)
-                    st.snow()
+                    st.snow() # FITUR SALJU
                     st.toast(f'Data {nama} Berhasil Tersimpan!', icon='✅')
                     st.cache_data.clear(); st.rerun()
 
@@ -150,9 +152,9 @@ else:
                     st.toast('Catatan klinis tersimpan!', icon='❄️')
                     st.cache_data.clear(); st.rerun()
 
-    # Pengaturan Filter Global
+    # --- FITUR TAHUN DINAMIS ---
     tahun_skrg = datetime.now().year
-    list_tahun = list(range(1900, 2101))
+    list_tahun = list(range(1900, tahun_skrg + 11))
 
     # --- TAB 3: REKAP IDENTITAS ---
     with tab2:
@@ -166,7 +168,7 @@ else:
             mask_i = (df_identitas['tgl_mrs'].dt.month == bul_i) & (df_identitas['tgl_mrs'].dt.year == tah_i) & (df_identitas['ruang'].isin(rng_i))
             df_f_i = df_identitas[mask_i].copy()
             
-            # Counter Data Identitas
+            # FITUR COUNTER (JUMLAH DATA)
             st.markdown(f"<div class='metric-box'>📊 Pasien Terfilter: <b>{len(df_f_i)}</b> | Total Database: <b>{len(df_identitas)}</b></div>", unsafe_allow_html=True)
             
             st.dataframe(df_f_i, use_container_width=True, hide_index=True)
@@ -199,7 +201,7 @@ else:
             mask_k = (df_ncp['tgl_input'].dt.month == bul_k) & (df_ncp['tgl_input'].dt.year == tah_k) & (df_ncp['ruang'].isin(rng_k))
             df_f_k = df_ncp[mask_k].copy()
             
-            # Counter Data Klinis
+            # FITUR COUNTER KLINIS
             st.markdown(f"<div class='metric-box'>📜 Catatan Terfilter: <b>{len(df_f_k)}</b> | Total Database: <b>{len(df_ncp)}</b></div>", unsafe_allow_html=True)
             
             st.dataframe(df_f_k, use_container_width=True, hide_index=True)
