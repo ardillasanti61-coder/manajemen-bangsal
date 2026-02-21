@@ -49,30 +49,31 @@ def warna_imt(val):
     except:
         return ''
 
-# --- FUNGSI PEMBERSIH TABEL (AGAR TIDAK BERANAK) ---
+# CARI DAN GANTI BAGIAN INI SAJA:
 def bersihkan_tabel(df):
     if df.empty: return df
     df = df.copy()
     
-    # 1. Paksa kolom antropometri jadi angka murni agar bisa diproses
-    for col in ['bb', 'tb', 'lila', 'ulna']:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            
-    # 2. Hitung/Update IMT (2 angka di belakang koma)
-    df['imt'] = df.apply(lambda r: round(r['bb']/((r['tb']/100)**2), 2) if r['bb']>0 and r['tb']>0 else 0, axis=1)
-
-    # 3. Format tampilan akhir menjadi teks yang rapi
+    # 1. Rapikan Tanggal & No RM (Berlaku untuk Identitas & Klinis)
     for col in df.columns:
-        # Rapikan Tanggal
         if 'tgl' in col or 'tanggal' in col.lower():
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%m-%Y')
-        # Rapikan No, RM, Kamar (Hapus .0)
         elif col in ['no', 'no_rm', 'no_kamar']:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int).astype(str).replace('0', '')
-        # Rapikan Angka (Paksa 2 angka belakang koma)
-        elif col in ['bb', 'tb', 'lila', 'ulna', 'imt']:
-            df[col] = df[col].apply(lambda x: f"{float(x):.2f}")
+
+    # 2. KHUSUS IDENTITAS: Hitung IMT & Format Angka jika ada kolom BB/TB
+    if 'bb' in df.columns and 'tb' in df.columns:
+        for col in ['bb', 'tb', 'lila', 'ulna']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
+        # Hitung IMT ulang untuk rekap
+        df['imt'] = df.apply(lambda r: round(r['bb']/((r['tb']/100)**2), 2) if float(r['bb'])>0 and float(r['tb'])>0 else 0, axis=1)
+        
+        # Paksa 2 angka belakang koma
+        for col in ['bb', 'tb', 'lila', 'ulna', 'imt']:
+            if col in df.columns:
+                df[col] = df[col].apply(lambda x: f"{float(x):.2f}")
             
     return df
 
@@ -239,3 +240,4 @@ else:
             out_k = BytesIO()
             with pd.ExcelWriter(out_k, engine='openpyxl') as writer: df_f_k.to_excel(writer, index=False)
             st.download_button("📥 DOWNLOAD KLINIS", data=out_k.getvalue(), file_name="Rekap_Klinis.xlsx")
+
