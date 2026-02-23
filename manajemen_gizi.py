@@ -133,8 +133,18 @@ else:
     st.markdown(f"<h1 class='main-title'>Manajemen Bangsal - {st.session_state['username'].upper()}</h1>", unsafe_allow_html=True)
     tab1, tab_ncp, tab2, tab_rekap_ncp = st.tabs(["➕ Identitas", "📝 Data Klinis", "📊 Rekap Identitas", "📜 Rekap Klinis"])
 
-    df_identitas = conn.read(spreadsheet=URL_SHEETS, worksheet="Sheet1", ttl=0).fillna('')
-    df_ncp = conn.read(spreadsheet=URL_SHEETS, worksheet="NCP", ttl=0).fillna('')
+    # Membaca data - Pastikan nama worksheet SAMA PERSIS dengan tab di bawah Google Sheets
+    try:
+        df_identitas = conn.read(spreadsheet=URL_SHEETS, worksheet="Sheet1", ttl=0).fillna('')
+    except Exception:
+        st.error("Tab 'Sheet1' tidak ditemukan! Cek nama tab di Google Sheets kamu.")
+        df_identitas = pd.DataFrame()
+
+    try:
+        df_ncp = conn.read(spreadsheet=URL_SHEETS, worksheet="NCP", ttl=0).fillna('')
+    except Exception:
+        st.error("Tab 'NCP' tidak ditemukan! Cek nama tab di Google Sheets kamu.")
+        df_ncp = pd.DataFrame()
 
     # --- TAB 1: INPUT IDENTITAS ---
     with tab1:
@@ -247,7 +257,3 @@ else:
             out_k = BytesIO()
             with pd.ExcelWriter(out_k, engine='openpyxl') as writer: df_f_k.to_excel(writer, index=False)
             st.download_button("📥 DOWNLOAD KLINIS", data=out_k.getvalue(), file_name="Rekap_Klinis.xlsx")
-
-
-
-
