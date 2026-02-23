@@ -1,4 +1,4 @@
-st-gsheets-connection>=0.1.0
+st-gsheets-connection
 pandas
 openpyxl
 python-dateutil
