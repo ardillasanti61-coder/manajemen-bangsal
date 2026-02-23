@@ -3,7 +3,11 @@ import pandas as pd
 try:
     from st_gsheets_connection import GSheetsConnection
 except ModuleNotFoundError:
-    from streamlit_gsheets_connection import GSheetsConnection
+    try:
+        from streamlit_gsheets_connection import GSheetsConnection
+    except ModuleNotFoundError:
+        from streamlit_gsheets import GSheetsConnection
+
 from io import BytesIO
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
@@ -243,6 +247,7 @@ else:
             out_k = BytesIO()
             with pd.ExcelWriter(out_k, engine='openpyxl') as writer: df_f_k.to_excel(writer, index=False)
             st.download_button("📥 DOWNLOAD KLINIS", data=out_k.getvalue(), file_name="Rekap_Klinis.xlsx")
+
 
 
 
