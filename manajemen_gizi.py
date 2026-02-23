@@ -19,9 +19,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# URL Google Sheet (Hanya sebagai cadangan)
-URL_SHEETS = "https://docs.google.com/spreadsheets/d/1oPJUfBl5Ht74IUbt_Qv8XzG51bUmpCwJ_FL7iBO6UR0"
-
 # --- 2. CSS CUSTOM ---
 st.markdown("""
     <style>
@@ -45,15 +42,14 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- FUNGSI LOGIKA GIZI ---
-
 def warna_imt(val):
     try:
         val = float(val)
         if val <= 0: return ''
-        if val < 18.5: return 'background-color: #F3C623; color: black;'   # Kuning
-        elif 18.5 <= val < 25.0: return 'background-color: #9BDBA1; color: black;' # Hijau
-        elif 25.0 <= val < 27.0: return 'background-color: #FFA447; color: black;' # Orange
-        else: return 'background-color: #FF6969; color: white;'            # Merah
+        if val < 18.5: return 'background-color: #F3C623; color: black;'
+        elif 18.5 <= val < 25.0: return 'background-color: #9BDBA1; color: black;'
+        elif 25.0 <= val < 27.0: return 'background-color: #FFA447; color: black;'
+        else: return 'background-color: #FF6969; color: white;'
     except: return ''
 
 def label_imt(val):
@@ -69,34 +65,26 @@ def label_imt(val):
 def bersihkan_tabel(df):
     if df.empty: return df
     df = df.copy()
-    
-    # 1. Rapikan Tanggal & No RM
     for col in df.columns:
         if 'tgl' in col or 'tanggal' in col.lower():
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime('%d-%m-%Y')
         elif col in ['no', 'no_rm', 'no_kamar']:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int).astype(str).replace('0', '')
 
-    # 2. KHUSUS IDENTITAS: Rapikan Angka (BB, TB, LILA, ULNA) & Hitung IMT
     kolom_angka = ['bb', 'tb', 'lila', 'ulna']
     if all(x in df.columns for x in ['bb', 'tb']):
         for col in kolom_angka:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         
-        # Hitung IMT murni
         df['imt_num'] = df.apply(lambda r: round(r['bb']/((r['tb']/100)**2), 2) if float(r['bb'])>0 and float(r['tb'])>0 else 0, axis=1)
-        
-        # Label Status Gizi
         df['status_gizi'] = df['imt_num'].apply(label_imt)
         
-        # PAKSA FORMAT 2 ANGKA BELAKANG KOMA UNTUK TAMPILAN
         for col in kolom_angka:
             if col in df.columns:
                 df[col] = df[col].apply(lambda x: f"{float(x):.2f}")
         df['imt'] = df['imt_num'].apply(lambda x: f"{float(x):.2f}")
         df = df.drop(columns=['imt_num'])
-            
     return df
 
 # --- 3. LOGIKA LOGIN ---
@@ -120,7 +108,6 @@ if not st.session_state['login_berhasil']:
             else: st.error("Username atau Password Salah!")
 else:
     # --- 4. KONEKSI DATA ---
-    # Menggunakan koneksi default dari Secrets
     conn = st.connection("gsheets", type=GSheetsConnection)
     list_ruang = ["Anna", "Maria", "Fransiskus", "Teresa", "Monika", "Clement", "ICU/ICCU"]
 
@@ -134,18 +121,15 @@ else:
     st.markdown(f"<h1 class='main-title'>Manajemen Bangsal - {st.session_state['username'].upper()}</h1>", unsafe_allow_html=True)
     tab1, tab_ncp, tab2, tab_rekap_ncp = st.tabs(["➕ Identitas", "📝 Data Klinis", "📊 Rekap Identitas", "📜 Rekap Klinis"])
 
-    # --- BAGIAN PERBAIKAN BACA DATA ---
+    # --- BACA DATA ---
     try:
-        # Mengambil link langsung dari Secrets
         df_identitas = conn.read(worksheet="Sheet1", ttl=0).fillna('')
-    except Exception as e:
-        st.error(f"Gagal memuat tab 'Sheet1'. Pastikan nama tab benar. Error: {e}")
+    except:
         df_identitas = pd.DataFrame()
 
     try:
         df_ncp = conn.read(worksheet="NCP", ttl=0).fillna('')
-    except Exception as e:
-        st.error(f"Gagal memuat tab 'NCP'. Pastikan nama tab benar. Error: {e}")
+    except:
         df_ncp = pd.DataFrame()
 
     # --- TAB 1: INPUT IDENTITAS ---
@@ -187,8 +171,8 @@ else:
                         "diagnosa_medis": d_medis, "skrining": skrining_gizi, "diet": diet, 
                         "input_by": st.session_state['username']
                     }])
-                  conn.update(worksheet="Sheet1", data=pd.concat([df_identitas, new_row], ignore_index=True))
-                  st.snow(); st.toast('Tersimpan!', icon='✅'); st.cache_data.clear(); st.rerun()
+                    conn.update(worksheet="Sheet1", data=pd.concat([df_identitas, new_row], ignore_index=True))
+                    st.snow(); st.toast('Tersimpan!', icon='✅'); st.cache_data.clear(); st.rerun()
 
     # --- TAB 2: DATA KLINIS ---
     with tab_ncp:
@@ -213,6 +197,7 @@ else:
                         }])
                         conn.update(worksheet="NCP", data=pd.concat([df_ncp, new_ncp], ignore_index=True))
                         st.snow(); st.toast('Tersimpan!', icon='❄️'); st.cache_data.clear(); st.rerun()
+
     # --- TAB 3: REKAP IDENTITAS ---
     with tab2:
         if not df_identitas.empty:
