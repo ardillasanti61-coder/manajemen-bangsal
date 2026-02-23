@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# URL Google Sheet
+# URL Google Sheet (Hanya sebagai cadangan)
 URL_SHEETS = "https://docs.google.com/spreadsheets/d/1oPJUfBl5Ht74IUbt_Qv8XzG51bUmpCwJ_FL7iBO6UR0"
 
 # --- 2. CSS CUSTOM ---
@@ -120,6 +120,7 @@ if not st.session_state['login_berhasil']:
             else: st.error("Username atau Password Salah!")
 else:
     # --- 4. KONEKSI DATA ---
+    # Menggunakan koneksi default dari Secrets
     conn = st.connection("gsheets", type=GSheetsConnection)
     list_ruang = ["Anna", "Maria", "Fransiskus", "Teresa", "Monika", "Clement", "ICU/ICCU"]
 
@@ -133,17 +134,18 @@ else:
     st.markdown(f"<h1 class='main-title'>Manajemen Bangsal - {st.session_state['username'].upper()}</h1>", unsafe_allow_html=True)
     tab1, tab_ncp, tab2, tab_rekap_ncp = st.tabs(["➕ Identitas", "📝 Data Klinis", "📊 Rekap Identitas", "📜 Rekap Klinis"])
 
-    # Membaca data - Pastikan nama worksheet SAMA PERSIS dengan tab di bawah Google Sheets
+    # --- BAGIAN PERBAIKAN BACA DATA ---
     try:
-        df_identitas = conn.read(spreadsheet=URL_SHEETS, worksheet="Sheet1", ttl=0).fillna('')
-    except Exception:
-        st.error("Tab 'Sheet1' tidak ditemukan! Cek nama tab di Google Sheets kamu.")
+        # Mengambil link langsung dari Secrets
+        df_identitas = conn.read(worksheet="Sheet1", ttl=0).fillna('')
+    except Exception as e:
+        st.error(f"Gagal memuat tab 'Sheet1'. Pastikan nama tab benar. Error: {e}")
         df_identitas = pd.DataFrame()
 
     try:
-        df_ncp = conn.read(spreadsheet=URL_SHEETS, worksheet="NCP", ttl=0).fillna('')
-    except Exception:
-        st.error("Tab 'NCP' tidak ditemukan! Cek nama tab di Google Sheets kamu.")
+        df_ncp = conn.read(worksheet="NCP", ttl=0).fillna('')
+    except Exception as e:
+        st.error(f"Gagal memuat tab 'NCP'. Pastikan nama tab benar. Error: {e}")
         df_ncp = pd.DataFrame()
 
     # --- TAB 1: INPUT IDENTITAS ---
@@ -185,8 +187,8 @@ else:
                         "diagnosa_medis": d_medis, "skrining": skrining_gizi, "diet": diet, 
                         "input_by": st.session_state['username']
                     }])
-                    conn.update(spreadsheet=URL_SHEETS, worksheet="Sheet1", data=pd.concat([df_identitas, new_row], ignore_index=True))
-                    st.snow(); st.toast('Tersimpan!', icon='✅'); st.cache_data.clear(); st.rerun()
+                  conn.update(worksheet="Sheet1", data=pd.concat([df_identitas, new_row], ignore_index=True))
+                  st.snow(); st.toast('Tersimpan!', icon='✅'); st.cache_data.clear(); st.rerun()
 
     # --- TAB 2: DATA KLINIS ---
     with tab_ncp:
@@ -209,9 +211,8 @@ else:
                             "biokimia": bio, "penunjang_lainnya": penunjang, "fisik_klinis": fk, "diet": row['diet'],
                             "input_by": st.session_state['username']
                         }])
-                        conn.update(spreadsheet=URL_SHEETS, worksheet="NCP", data=pd.concat([df_ncp, new_ncp], ignore_index=True))
+                        conn.update(worksheet="NCP", data=pd.concat([df_ncp, new_ncp], ignore_index=True))
                         st.snow(); st.toast('Tersimpan!', icon='❄️'); st.cache_data.clear(); st.rerun()
-
     # --- TAB 3: REKAP IDENTITAS ---
     with tab2:
         if not df_identitas.empty:
@@ -257,4 +258,3 @@ else:
             out_k = BytesIO()
             with pd.ExcelWriter(out_k, engine='openpyxl') as writer: df_f_k.to_excel(writer, index=False)
             st.download_button("📥 DOWNLOAD KLINIS", data=out_k.getvalue(), file_name="Rekap_Klinis.xlsx")
-
