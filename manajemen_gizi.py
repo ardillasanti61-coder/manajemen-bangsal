@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # URL Google Sheet
-URL_SHEETS = "https://docs.google.com/spreadsheets/d/1oPJUfBl5Ht74IUbt_Qv8XzG51bUmpCwJ_FL7iBO6UR0/edit"
+URL_SHEETS = "https://docs.google.com/spreadsheets/d/1oPJUfBl5Ht74IUbt_Qv8XzG51bUmpCwJ_FL7iBO6UR0"
 
 # --- 2. CSS CUSTOM ---
 st.markdown("""
@@ -257,3 +257,4 @@ else:
             out_k = BytesIO()
             with pd.ExcelWriter(out_k, engine='openpyxl') as writer: df_f_k.to_excel(writer, index=False)
             st.download_button("📥 DOWNLOAD KLINIS", data=out_k.getvalue(), file_name="Rekap_Klinis.xlsx")
+
